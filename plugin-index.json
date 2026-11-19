@@ -34,6 +34,18 @@
       },
       "versions": [
         {
+          "version": "0.1.1",
+          "publishTimestamp": 1795096613,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/Aliax-LI/dsh-gpt-image",
+            "commit": "db487dec9de4f224ac9293ca173929e19507c40b"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.5"
+          }
+        },
+        {
           "version": "0.1.0",
           "publishTimestamp": 1795095297,
           "source": {
