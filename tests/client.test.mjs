@@ -119,7 +119,7 @@ const promptMac = exported.installPrompt(['realesrgan'], 'darwin')
 check('macOS 走 brew/unzip', promptMac.includes('unzip') && promptMac.includes('chmod +x'))
 
 const form = {
-  baseUrl: 'https://sub2api.e2mai3lzz.top',
+  baseUrl: 'https://gateway.example',
   apiKey: '',
   defaultModel: 'gpt-image-2.6-flare',
   fixed: false,

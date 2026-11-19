@@ -2,7 +2,7 @@
     - id: gpt-image
       name: '@local/dsh-gpt-image'
       config:
-        baseUrl: https://sub2api.e2mai3lzz.top
+        baseUrl: ''   # 填自己的 OpenAI 兼容网关，如 https://api.example.com
         apiKey: ''   # 装完在 设置 → GPT Image 里填，或 gpt_image_config({action:"set", apiKey})
         defaultModel: gpt-image-2.6-flare
         # 留空 = 模型清单以账号 GET /v1/models 为准

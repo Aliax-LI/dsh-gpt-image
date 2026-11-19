@@ -1,7 +1,8 @@
 /** 探测 2.6 系列的输出格式参数：format / output_format / response_format 的取值面。 */
 import { writeFile } from 'node:fs/promises'
 
-const BASE = 'https://sub2api.e2mai3lzz.top'
+const BASE = process.env.GPT_IMAGE_BASE_URL ?? ''
+if (BASE === '') throw new Error('先设置 GPT_IMAGE_BASE_URL')
 const KEY = process.env.GPT_IMAGE_API_KEY ?? ''
 if (KEY === '') throw new Error('先设置 GPT_IMAGE_API_KEY')
 const PROMPT = 'a small brass gear on a dark gray concrete wall, macro, hard light'

@@ -8,8 +8,8 @@ import { basename, extname, isAbsolute, join, resolve } from 'node:path'
 import { extensionOf, imageSize, sniffMediaType } from './image.js'
 import { DEFAULT_MODEL, normalizeModels } from './models.js'
 
-/** 缺省服务地址。 */
-export const DEFAULT_BASE_URL = 'https://sub2api.e2mai3lzz.top'
+/** 缺省服务地址：留空，由使用方在设置页或配置里填自己的兼容网关。 */
+export const DEFAULT_BASE_URL = ''
 /** 缺省产物目录（相对会话工作目录）。 */
 export const DEFAULT_OUTPUT_DIR = 'gpt-image-output'
 /** 缺省超时：官逆出图常见 30–90s，2K/4K 更久。 */
@@ -38,7 +38,7 @@ export function resolveSettings(pluginConfig = {}, args = {}) {
     ? normalizeModels(args.models, [])
     : normalizeModels(pluginConfig.models ?? envModels(), [])
   return {
-    baseUrl: firstString(args.baseUrl, pluginConfig.baseUrl, process.env.GPT_IMAGE_BASE_URL, DEFAULT_BASE_URL),
+    baseUrl: firstString(args.baseUrl, pluginConfig.baseUrl, process.env.GPT_IMAGE_BASE_URL, DEFAULT_BASE_URL) ?? '',
     apiKey: firstString(args.apiKey, pluginConfig.apiKey, process.env.GPT_IMAGE_API_KEY, process.env.APIYI_API_KEY, '') ?? '',
     models,
     defaultModel: firstString(args.model, pluginConfig.defaultModel, process.env.GPT_IMAGE_MODEL, DEFAULT_MODEL),

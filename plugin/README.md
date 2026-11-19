@@ -51,7 +51,20 @@
 
 ## 模型与参数
 
-模型来自账号的 `GET {base_url}/v1/models`：激活时拉一次，调用时缓存 10 分钟。配置里 `models: []`（默认）表示"跟随账号"，填了才变成固定清单。
+常见的 2.6 / 2.5 / 2 系列按用途分两档：
+
+| 型号 | 定位 | 支持参数 |
+| --- | --- | --- |
+| `gpt-image-2.6-flare` | 2.6 系，速度优先，日常出图与批量草图（默认） | `size`、`output_format` png/jpeg/webp/gif/svg、`quality`、`mask` |
+| `gpt-image-2.6-sunburst` | 2.6 系，编辑精度优先，改图 / 融合 / 蒙版首选 | 同上 |
+| `gpt-image-2.5-flare` | 2.5 系，速度优先 | `size`、`output_format` png/jpeg/webp、`quality`、`mask` |
+| `gpt-image-2.5-sunburst` | 2.5 系，编辑精度优先 | 同上 |
+| `gpt-image-2.5` | 2.5 基础档 | 同上 |
+| `gpt-image-2` | 上一代，参数面最窄 | 同上 |
+
+`quality` 在 flat 计价的官逆通道上不保证带来画质差异；`gif` / `svg` 只有 2.6 系支持。目录外的模型按透传处理，参数原样发出，报错以网关为准。
+
+模型清单来自账号的 `GET {base_url}/v1/models`：激活时拉一次，调用时缓存 10 分钟。配置里 `models: []`（默认）表示"跟随账号"，填了才变成固定清单。
 
 插件按模型能力裁剪参数，**不把模型不吃的字段硬塞进去**：
 
@@ -103,7 +116,7 @@ Lanczos 只重采样、放大后偏软，所以默认叠一道轻度锐化（`up
     - id: gpt-image
       name: '@local/dsh-gpt-image'
       config:
-        baseUrl: https://sub2api.e2mai3lzz.top
+        baseUrl: https://api.example.com    # 你的 OpenAI 兼容网关
         apiKey: ''            # 也可以留空，改用 GPT_IMAGE_API_KEY
         defaultModel: gpt-image-2.6-flare
         models: []            # 留空 = 以账号 /v1/models 为准

@@ -4,7 +4,8 @@
  */
 import { writeFile } from 'node:fs/promises'
 
-const BASE = 'https://sub2api.e2mai3lzz.top'
+const BASE = process.env.GPT_IMAGE_BASE_URL ?? ''
+if (BASE === '') throw new Error('先设置 GPT_IMAGE_BASE_URL')
 const KEY = process.env.GPT_IMAGE_API_KEY ?? ''
 if (KEY === '') throw new Error('先设置 GPT_IMAGE_API_KEY')
 const PROMPT = 'a single red apple on a plain white table, top light, minimal, no text'

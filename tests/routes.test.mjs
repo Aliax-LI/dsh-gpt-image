@@ -20,7 +20,7 @@ const check = (name, ok, detail = '') => {
 
 const KEY = process.env.GPT_IMAGE_API_KEY ?? 'sk-local-test-key'
 const CONFIG = {
-  baseUrl: 'https://sub2api.e2mai3lzz.top',
+  baseUrl: 'https://gateway.example',
   apiKey: KEY,
   defaultModel: 'gpt-image-2.6-flare',
   models: [],

@@ -36,7 +36,7 @@ const patchText = await readFile(new URL('../plugin/cordis.patch.yml', import.me
 const patchValue = (key) => new RegExp(`^\\s*${key}:\\s*(.+)$`, 'm').exec(patchText)?.[1]?.trim() ?? ''
 
 const CONFIG = {
-  baseUrl: process.env.GPT_IMAGE_BASE_URL ?? patchValue('baseUrl') ?? 'https://sub2api.e2mai3lzz.top',
+  baseUrl: process.env.GPT_IMAGE_BASE_URL ?? (patchValue('baseUrl') || 'https://gateway.example'),
   apiKey: process.env.GPT_IMAGE_API_KEY ?? process.env.APIYI_API_KEY ?? patchValue('apiKey'),
   defaultModel: DEFAULT_MODEL,
   models: [],
@@ -82,6 +82,21 @@ delete process.env.GPT_IMAGE_API_KEY
 const noKey = await probe({ prompt: 'x', apiKey: '' })
 if (savedKeyEnv !== undefined) process.env.GPT_IMAGE_API_KEY = savedKeyEnv
 check('缺 key 报可操作错误', /缺少 api_key/.test(noKey.error ?? ''), noKey.error ?? '')
+
+const noBase = await (async () => {
+  const savedBase = process.env.GPT_IMAGE_BASE_URL
+  const savedKey = process.env.GPT_IMAGE_API_KEY
+  delete process.env.GPT_IMAGE_BASE_URL
+  const bare = fakeContext()
+  await apply(bare.ctx, { apiKey: 'sk-probe', baseUrl: '' })
+  const out = await bare.tools.get('gpt_image_generate')
+    .execute({ prompt: 'x' }, { signal: new AbortController().signal })
+    .catch((error) => ({ error: String(error?.message ?? error) }))
+  if (savedBase !== undefined) process.env.GPT_IMAGE_BASE_URL = savedBase
+  if (savedKey !== undefined) process.env.GPT_IMAGE_API_KEY = savedKey
+  return out
+})()
+check('缺 base_url 报可操作错误', /缺少 base_url/.test(noBase.error ?? ''), noBase.error ?? '')
 
 const badSize = await generate.execute({ prompt: 'x', size: 'huge', apiKey: CONFIG.apiKey || 'probe-only' }, { signal: new AbortController().signal }).catch((error) => ({ error: String(error?.message ?? error) }))
 check('非法尺寸被拒', /尺寸格式/.test(badSize.error ?? ''), badSize.error ?? '')

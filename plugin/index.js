@@ -240,6 +240,9 @@ export async function apply(ctx, config = {}) {
    */
   const run = async (request, exec, mode) => {
     const settings = resolveSettings(readConfig(config), request)
+    if (settings.baseUrl == null || settings.baseUrl === '') {
+      throw new Error('缺少 base_url：在 设置 → GPT Image 填 OpenAI 兼容网关地址，或设置环境变量 GPT_IMAGE_BASE_URL。')
+    }
     if (settings.apiKey === '') {
       throw new Error('缺少 api_key：写入插件配置的 apiKey，或设置环境变量 GPT_IMAGE_API_KEY，或在调用时传 apiKey。')
     }
