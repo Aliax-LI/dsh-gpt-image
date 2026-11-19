@@ -7,7 +7,7 @@
 - **补 4K**：官逆原生短边上限约 1536，落盘后按目标长边在本机放大（Real-ESRGAN / ffmpeg Lanczos3 / Pillow / ImageMagick / sips），macOS、Windows、Linux 通用。
 - **一页配置**：**设置 → GPT Image** 里管接口、模型清单、产物目录与放大参数，改完即时生效。
 
-走 OpenAI 兼容的 `/v1/images/generations` 与 `/v1/images/edits`，所以官方兼容层、API易、自建 sub2api 之类的网关都能接。模型清单**以账号 `/v1/models` 为准**，插件不带白名单。
+走 OpenAI 兼容的 `/v1/images/generations` 与 `/v1/images/edits`，所以任何提供这两个端点的兼容网关都能接。模型清单**以账号 `/v1/models` 为准**，插件不带白名单。
 
 ## 工具
 
