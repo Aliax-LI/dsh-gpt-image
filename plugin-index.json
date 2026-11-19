@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "title": {
+    "en": "Aliax plugins",
+    "zh": "Aliax 插件"
+  },
+  "description": {
+    "en": "Plugins published by Aliax-LI.",
+    "zh": "Aliax-LI 发布的插件。"
+  },
+  "plugins": [
+    {
+      "name": "@aliax-li/dsh-gpt-image",
+      "title": {
+        "en": "GPT Image reverse channel",
+        "zh": "GPT Image 官逆出图"
+      },
+      "description": {
+        "en": "Generate and edit images with GPT Image-compatible gateways, and upscale results to 4K.",
+        "zh": "通过 GPT Image 兼容网关生成和编辑图片，并可将结果放大到 4K。"
+      },
+      "author": "Aliax-LI",
+      "homepage": "https://github.com/Aliax-LI/dsh-gpt-image",
+      "repository": {
+        "url": "https://github.com/Aliax-LI/dsh-gpt-image"
+      },
+      "metadata": {
+        "keywords": [
+          "gpt-image",
+          "image generation",
+          "image editing",
+          "upscale"
+        ]
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1795095297,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/Aliax-LI/dsh-gpt-image",
+            "commit": "3ab93dc3caf0b08f828d354489af65bba14a3a76"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.5"
+          }
+        }
+      ]
+    }
+  ]
+}
