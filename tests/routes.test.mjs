@@ -7,9 +7,9 @@
 import { mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { apply } from '../plugin/index.js'
-import { readConfig } from '../plugin/lib/config.js'
-import { registerRoutes } from '../plugin/lib/routes.js'
+import { apply } from '../index.js'
+import { readConfig } from '../lib/config.js'
+import { registerRoutes } from '../lib/routes.js'
 
 const LIVE = process.argv.includes('--live')
 const rows = []

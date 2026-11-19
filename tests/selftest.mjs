@@ -7,9 +7,9 @@
 import { mkdir, writeFile, rm, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { apply } from '../plugin/index.js'
-import { DEFAULT_MODEL, KNOWN_MODELS, modelSpec, normalizeModels } from '../plugin/lib/models.js'
-import { fetchImageModels, resolveSettings, withSizeHint } from '../plugin/lib/api.js'
+import { apply } from '../index.js'
+import { DEFAULT_MODEL, KNOWN_MODELS, modelSpec, normalizeModels } from '../lib/models.js'
+import { fetchImageModels, resolveSettings, withSizeHint } from '../lib/api.js'
 
 const LIVE = process.argv.includes('--live')
 const results = []
@@ -32,7 +32,7 @@ function fakeContext() {
   }
 }
 
-const patchText = await readFile(new URL('../plugin/cordis.patch.yml', import.meta.url), 'utf8')
+const patchText = await readFile(new URL('../cordis.patch.yml', import.meta.url), 'utf8')
 const patchValue = (key) => new RegExp(`^\\s*${key}:\\s*(.+)$`, 'm').exec(patchText)?.[1]?.trim() ?? ''
 
 const CONFIG = {

@@ -1,9 +1,9 @@
 {
   "name": "@local/dsh-gpt-image",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
-  "description": "GPT Image reverse-channel generation/editing with a Lanczos-based 4K upscale chain and a settings page.",
+  "description": "DSH plugin: GPT Image reverse-channel generation/editing with a cross-platform 4K upscale chain and a native settings page.",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -38,8 +38,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Aliax-LI/dsh-gpt-image.git",
-    "directory": "plugin"
+    "url": "git+https://github.com/Aliax-LI/dsh-gpt-image.git"
   },
   "keywords": [
     "dsh-plugin",

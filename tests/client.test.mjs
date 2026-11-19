@@ -11,7 +11,7 @@ const check = (name, ok, detail = '') => {
   console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail === '' ? '' : ` — ${detail}`}`)
 }
 
-const source = await readFile(new URL('../plugin/client.js', import.meta.url), 'utf8')
+const source = await readFile(new URL('../client.js', import.meta.url), 'utf8')
 
 // --- 1. 模块契约 -----------------------------------------------------------
 let captured
@@ -23,7 +23,7 @@ const React = {
   useCallback: (fn) => fn,
   useMemo: (fn) => fn(),
 }
-await import(new URL('../plugin/client.js', import.meta.url).href)
+await import(new URL('../client.js', import.meta.url).href)
   .catch((error) => check('client.js 可导入', false, error.message))
 
 check('模块 id 正确', captured?.id === '@local/dsh-gpt-image', String(captured?.id))
@@ -138,7 +138,7 @@ const form = {
 const noop = () => {}
 const catalogWin = ['realesrgan', 'ffmpeg', 'pillow', 'magick']
 // --- 6. 图标：GPT 旋叶标记 ------------------------------------------------
-const iconSvg = await readFile(new URL('../plugin/icon.svg', import.meta.url), 'utf8')
+const iconSvg = await readFile(new URL('../icon.svg', import.meta.url), 'utf8')
 check('图标是合法 SVG 且体积合规', iconSvg.trimStart().startsWith('<svg') && Buffer.byteLength(iconSvg) < 256 * 1024, `${Buffer.byteLength(iconSvg)} bytes`)
 check('图标无文字元素', !/<text|<tspan|<foreignObject/.test(iconSvg))
 check('图标是 sub2api 提供的 logo', iconSvg.includes('s2a-brand') && iconSvg.includes('viewBox="0 0 512 512"'), iconSvg.slice(0, 60).replace(/\n/g, ' '))
@@ -317,7 +317,7 @@ const requireWithPrimitives = (name) => {
   throw new Error(`unexpected require ${name}`)
 }
 const cacheBust = `?v=${Date.now()}`
-await import(new URL('../plugin/client.js', import.meta.url).href + cacheBust).catch(() => {})
+await import(new URL('../client.js', import.meta.url).href + cacheBust).catch(() => {})
 const exported2 = captured2?.factory(requireWithPrimitives)
 const primTree = exported2?.PanelView({
   t: (key) => key,
