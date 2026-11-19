@@ -1,7 +1,7 @@
 /**
  * 放大链路：官逆出图天然到不了 4K，这里把结果推到目标长边。
  *
- * 引擎取舍（依据实测与官方文档，不按直觉）：
+ * 引擎取舍（依据引擎能力与官方文档，不按直觉）：
  * - `ffmpeg`：`scale=…:flags=lanczos` 是**真 Lanczos3**，放大不退化；无外部依赖时首选。
  * - `pillow`：`Image.LANCZOS`（Pillow 的 Lanczos 重采样），与 ffmpeg 同族，输出略有差异。
  * - `magick`：ImageMagick 的 `-resize ... -unsharp`，macOS / Windows / Linux 都能装。

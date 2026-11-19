@@ -4,12 +4,12 @@
  * 清单以账号 `GET /v1/models` 为准（本插件不维护自己的模型白名单）；下面这张表只标注
  * 「这个模型实际吃什么参数」，按各型号对参数的实际接受度整理，不按名字猜：
  *
- * - `size`：实测 `1536x1024` / `1024x1536` 原样生效，收。
- * - `quality`：传 `xhigh` / `low` 都不报错，但官逆 flat 计价下无法验证画质差异，属"收但不保证"。
- * - 输出格式：参数名是 **`output_format`**，不是 `format`——`format` 连 `bogus` 都被静默忽略。
- *   实测 `output_format`：2.6 系三家（png/jpeg/webp/gif/svg）全开；2.5 与 2 只开
+ * - `size`：`1536x1024` / `1024x1536` 原样生效，收。
+ * - `quality`：`xhigh` / `low` 都不报错，但 flat 计价下无法验证画质差异，属"收但不保证"。
+ * - 输出格式：参数名是 **`output_format`**，不是 `format`——`format` 连非法值都被静默忽略。
+ *   `output_format`：2.6 系三家（png/jpeg/webp/gif/svg）全开；2.5 与 2 只开
  *   png/jpeg/webp，`gif` / `svg` 直接 400（`GIF/SVG output is not enabled for this image model`）。
- *   `gif` / `svg` 出图不按 `size`（实测 1024x1024 请求得到 437×384 gif、1200×900 svg）。
+ *   `gif` / `svg` 出图不按 `size`（1024x1024 请求会得到约 437×384 gif、1200×900 svg）。
  * - `background`：传 `transparent` 返回的 PNG 是 colorType 2（无 alpha），不出透明底，所以不发。
  * - `response_format`：`url` 生效（返回 CDN 直链），插件会下载后落盘。
  * - `mask`：改图接口接受 mask 字段（见 `MASK_SUPPORT`）。
@@ -34,10 +34,10 @@ export const KNOWN_MODELS = [
 /** 别名 → 真实模型 id。 */
 export const MODEL_ALIASES = {}
 
-/** 实测：2.6 系全开；2.5 / 2 只到 webp，gif 与 svg 报 400。 */
+/** 2.6 系全开；2.5 / 2 只到 webp，gif 与 svg 会被网关拒（400）。 */
 const ALL_FORMATS = ['png', 'jpeg', 'webp', 'gif', 'svg']
 
-/** 实测：改图接口接受 mask 字段（`exact` = 按蒙版区改，`whole` = 只整图重绘）。 */
+/** 改图接口接受 mask 字段（`exact` = 按蒙版区改，`whole` = 只整图重绘）。 */
 const MASK_SUPPORT = 'exact'
 
 /** 型号族说明，用于给模型看的目录文案。 */

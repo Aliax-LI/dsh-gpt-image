@@ -697,7 +697,7 @@ window.__ModuleLoader__.load({
         set({ models: form.models.includes(id) ? form.models.filter((item) => item !== id) : [...form.models, id] })
       }
 
-      /** 用表单里当前的值实测一次；宿主端没有 /test 时退到已保存配置。 */
+      /** 用表单里当前的值试连一次；宿主端没有 /test 时退到已保存配置。 */
       const onTest = async () => {
         if (form == null) return
         setProbe({ state: 'running', text: t('testing') })

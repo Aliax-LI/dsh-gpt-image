@@ -46,7 +46,7 @@ const CONFIG = {
 // --- 1. 目录与闸门 ---------------------------------------------------------
 check('目录以 /v1/models 为准（配置留空）', normalizeModels([]).length === 0)
 check('默认模型是 2.6-flare', DEFAULT_MODEL === 'gpt-image-2.6-flare', DEFAULT_MODEL)
-check('实测快照 6 个模型', KNOWN_MODELS.length === 6, KNOWN_MODELS.join(', '))
+check('内置快照 6 个模型', KNOWN_MODELS.length === 6, KNOWN_MODELS.join(', '))
 check('size 全模型接受', KNOWN_MODELS.every((id) => modelSpec(id).size === true))
 check('quality 收但不保证', KNOWN_MODELS.every((id) => modelSpec(id).quality === 'accepted'))
 check('2.6 系开到 svg/gif', ['gpt-image-2.6-flare', 'gpt-image-2.6-sunburst'].every((id) => modelSpec(id).outputFormats.includes('svg') && modelSpec(id).outputFormats.includes('gif')))
@@ -129,7 +129,7 @@ const settings = resolveSettings({ ...CONFIG, models: [] }, {})
 
 const catalog = await fetchImageModels(settings, exec.signal)
 check('/v1/models 拉到图片模型', catalog.length > 0, catalog.join(', '))
-check('拉到的清单与实测快照同源', catalog.every((id) => /image/i.test(id)))
+check('拉到的清单与内置快照同源', catalog.every((id) => /image/i.test(id)))
 
 const configTool = configLive
 const shown = await configTool.execute({ action: 'show' }, exec)

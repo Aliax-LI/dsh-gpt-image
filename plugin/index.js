@@ -3,7 +3,7 @@
  * `/v1/images/generations` 与 `/v1/images/edits`。
  *
  * 模型清单**以账号 `GET /v1/models` 为准**，插件不自带白名单；内置表只记录每个模型
- * 实际吃什么参数（实测得出：size 生效、quality 收但不保证、format 与 transparent
+ * 实际吃什么参数（size 生效、quality 收但不保证、format 与 transparent
  * 被通道忽略、mask 走改图接口）。目录外的模型走透传，报错按网关为准。
  * @module @local/dsh-gpt-image
  */
@@ -74,7 +74,7 @@ const renderResult = (_args, value) => [{ type: 'text', text: String(value?.summ
 export async function apply(ctx, config = {}) {
   const current = () => resolveSettings(readConfig(config), {})
   const base = current()
-  // 目录以 /v1/models 为准；激活时拉一次用于工具描述，拉不到就用实测快照。
+  // 目录以 /v1/models 为准；激活时拉一次用于工具描述，拉不到就用内置快照。
   const live = base.models.length > 0
     ? base.models
     : await fetchImageModels({ ...base, timeoutMs: 8000 }, AbortSignal.timeout(9000)).catch(() => [])
@@ -122,7 +122,7 @@ export async function apply(ctx, config = {}) {
       }
       if (spec.quality === 'accepted') {
         params.quality = request.quality
-        notes.push(`quality=${request.quality} 已随请求发出；该通道 flat 计价，实测不报错但画质差异无法保证。`)
+        notes.push(`quality=${request.quality} 已随请求发出；该通道 flat 计价，不报错但画质差异无法保证。`)
       } else if (spec.quality) {
         params.quality = request.quality
       } else {
@@ -136,14 +136,14 @@ export async function apply(ctx, config = {}) {
       }
       if (spec.background) params.background = request.background
       else if (request.background !== 'auto') {
-        notes.push(`该通道不出透明底（实测 transparent 返回无 alpha 的 RGB png），已忽略 background=${request.background}。`)
+        notes.push(`该通道不出透明底（transparent 返回的是无 alpha 的 RGB png），已忽略 background=${request.background}。`)
       }
     }
 
     // 网关只认 output_format；`format` 连非法值都会被静默忽略，所以当成别名接住再改名发送。
     const requestedFormat = request.output_format ?? request.format
     if (requestformatAliased(request)) {
-      notes.push('`format` 不是网关参数（实测连 bogus 都被静默忽略），已改用 `output_format` 发送。')
+      notes.push('`format` 不是网关参数（连非法值都被静默忽略），已改用 `output_format` 发送。')
     }
     if (requestedFormat != null) {
       if (!OUTPUT_FORMATS.includes(requestedFormat)) {
@@ -153,7 +153,7 @@ export async function apply(ctx, config = {}) {
         params.outputFormat = requestedFormat
         if (requestedFormat === 'gif' || requestedFormat === 'svg') {
           const actual = requestedFormat === 'gif' ? '约 411×410' : '1200×900'
-          notes.push(`output_format=${requestedFormat} 不按 size 出图（实测 1024x1024 请求得到${actual}），画幅以返回为准。`)
+          notes.push(`output_format=${requestedFormat} 不按 size 出图（1024x1024 请求会得到${actual}），画幅以返回为准。`)
         }
       } else if (requestedFormat !== 'png') {
         notes.push(`\`${spec.id}\` 只开到 ${spec.outputFormats.join(' / ')}：${requestedFormat} 会被网关 400（* output is not enabled for this image model），已改按 png 出图。`)
@@ -451,7 +451,7 @@ export async function apply(ctx, config = {}) {
         : {},
       size: {
         type: 'string',
-        description: '输出尺寸，如 1024x1024、1536x1024、1024x1536、3840x2160；auto 交给服务端。实测该账号按 size 出图。',
+        description: '输出尺寸，如 1024x1024、1536x1024、1024x1536、3840x2160；auto 交给服务端；该账号按 size 出图。',
       },
       quality: {
         type: 'string',
@@ -461,7 +461,7 @@ export async function apply(ctx, config = {}) {
       background: {
         type: 'string',
         enum: BACKGROUNDS,
-        description: '背景处理；该通道不出透明底（实测 transparent 返回无 alpha），传了会被忽略并说明。',
+        description: '背景处理；该通道不出透明底（transparent 返回无 alpha），传了会被忽略并说明。',
       },
       output_format: {
         type: 'string',
@@ -506,7 +506,7 @@ export async function apply(ctx, config = {}) {
     description: [
       '文生图：用 GPT Image 官逆通道把提示词画成图片并存到工作目录。用户说画、生成、出图、做海报/插画/封面时用它。',
       `模型清单以账号 /v1/models 为准，当前：${catalog.join(', ')}；默认 ${defaultModel}。`,
-      '实测参数面：size 按需生效；output_format 支持 png/jpeg/webp，2.6 系另加 gif/svg（gif/svg 不跟 size）；quality 接受但不保证；transparent 不出透明底；mask 走改图。',
+      '参数面：size 按需生效；output_format 支持 png/jpeg/webp，2.6 系另加 gif/svg（gif/svg 不跟 size）；quality 接受但不保证；transparent 不出透明底；mask 走改图。',
       '默认只出 1 张，用户明确要多张才用 count（≤5）。默认把图片存到工作目录的 gpt-image-output/，纯文件名即可。',
       '要 4K 大图：先按 size 出到原生上限（短边 ≤1536），再传 target_long_edge=3840 走本机放大链路（Lanczos 保真 / Real-ESRGAN 补细节）。',
       '返回每张图的绝对路径与像素尺寸；被丢弃的参数会在 notes 里说明原因。',
