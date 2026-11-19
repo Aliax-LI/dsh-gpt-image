@@ -1,0 +1,17 @@
+- insert:
+    - id: gpt-image
+      name: '@local/dsh-gpt-image'
+      config:
+        baseUrl: https://sub2api.e2mai3lzz.top
+        apiKey: ''   # 装完在 设置 → GPT Image 里填，或 gpt_image_config({action:"set", apiKey})
+        defaultModel: gpt-image-2.6-flare
+        # 留空 = 模型清单以账号 GET /v1/models 为准
+        models: []
+        outputDir: gpt-image-output
+        timeoutMs: 300000
+        autoFallback: true
+        # 官逆到不了 4K：生成后按目标长边走本机放大链路
+        upscaleEngine: auto
+        upscaleTargetLongEdge: 0
+        realesrganPath: ''
+        sizeHintInPrompt: true

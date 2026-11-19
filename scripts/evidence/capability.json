@@ -1,0 +1,92 @@
+[
+  {
+    "model": "gpt-image-2.6-flare",
+    "params": {
+      "size": "1536x1024"
+    },
+    "seconds": "53.4",
+    "result": "HTTP 200 · 1536×1024 · png · 1591KB"
+  },
+  {
+    "model": "gpt-image-2.6-flare",
+    "params": {
+      "quality": "xhigh"
+    },
+    "seconds": "31.3",
+    "result": "HTTP 200 · 1312×1199 · png · 1821KB"
+  },
+  {
+    "model": "gpt-image-2.6-flare",
+    "params": {
+      "format": "webp"
+    },
+    "seconds": "56.6",
+    "result": "HTTP 200 · 1312×1199 · png · 1810KB"
+  },
+  {
+    "model": "gpt-image-2.6-flare",
+    "params": {
+      "background": "transparent"
+    },
+    "seconds": "29.4",
+    "result": "HTTP 200 · 1312×1199 · png · 1828KB"
+  },
+  {
+    "model": "gpt-image-2.6-sunburst",
+    "params": {
+      "size": "1024x1536",
+      "quality": "high"
+    },
+    "seconds": "36.9",
+    "result": "HTTP 200 · 1024×1536 · png · 1906KB"
+  },
+  {
+    "model": "gpt-image-2.5-flare",
+    "params": {
+      "size": "1536x1024",
+      "quality": "low"
+    },
+    "seconds": "29.9",
+    "result": "HTTP 200 · 1536×1024 · png · 1347KB"
+  },
+  {
+    "model": "gpt-image-2.5-sunburst",
+    "params": {
+      "format": "jpeg"
+    },
+    "seconds": "53.0",
+    "result": "HTTP 200 · 1312×1199 · png · 1604KB"
+  },
+  {
+    "model": "gpt-image-2.5",
+    "params": {
+      "size": "1024x1536"
+    },
+    "seconds": "30.4",
+    "result": "HTTP 200 · 1024×1536 · png · 1747KB"
+  },
+  {
+    "model": "gpt-image-2",
+    "params": {
+      "quality": "xhigh"
+    },
+    "seconds": "34.9",
+    "result": "HTTP 200 · 1312×1199 · png · 1846KB"
+  },
+  {
+    "model": "gpt-image-2",
+    "params": {
+      "quality": "high"
+    },
+    "seconds": "34.7",
+    "result": "HTTP 200 · 1312×1199 · png · 1830KB"
+  },
+  {
+    "model": "gpt-image-2",
+    "params": {
+      "background": "transparent"
+    },
+    "seconds": "35.6",
+    "result": "HTTP 200 · 1312×1199 · png · 1734KB"
+  }
+]

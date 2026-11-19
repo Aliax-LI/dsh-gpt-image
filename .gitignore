@@ -1,0 +1,8 @@
+node_modules/
+package-lock.json
+pnpm-lock.yaml
+gpt-image-output/
+selftest-output/
+route-test-output/
+.DS_Store
+*.log
