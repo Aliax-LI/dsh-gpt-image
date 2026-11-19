@@ -266,8 +266,8 @@ export async function apply(ctx, config = {}) {
         localNotes.push(`\`${modelId}\` 不在账号模型清单里（${catalog.join(', ')}）；仍按该 id 发送。`)
       }
       const gated = gate(request, spec)
-      // 改图的响应体是大块 base64，网关容易在中途 reset；默认改要直链，只回一个 URL。
-      if (gated.params.responseFormat == null && mode === 'edit') gated.params.responseFormat = 'url'
+      // 默认就让网关回直链：JSON 只有几百字节，避开大块 base64 传输被中途 reset，再单独下载落盘。
+      if (gated.params.responseFormat == null) gated.params.responseFormat = 'url'
       localNotes.push(...gated.notes)
 
       let images = []

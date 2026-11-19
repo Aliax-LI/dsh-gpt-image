@@ -104,7 +104,7 @@ const noBase = await (async () => {
   if (savedKey !== undefined) process.env.GPT_IMAGE_API_KEY = savedKey
   return out
 })()
-check('改图默认走直链响应', hostSource.includes("mode === 'edit') gated.params.responseFormat = 'url'"))
+check('默认走直链响应', hostSource.includes("gated.params.responseFormat = 'url'"))
 check('传输失败会换路重试', hostSource.includes('isTransportFailure') && hostSource.includes('formatSwitched'))
 check('摘要里给出落盘目录', hostSource.includes('`目录：${dir}`'))
 check('缺 base_url 报可操作错误', /缺少 base_url/.test(noBase.error ?? ''), noBase.error ?? '')

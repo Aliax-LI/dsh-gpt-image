@@ -5,3 +5,6 @@ selftest-output/
 route-test-output/
 .DS_Store
 *.log
+
+# 本地会话产物，不进仓库
+电商出图/
