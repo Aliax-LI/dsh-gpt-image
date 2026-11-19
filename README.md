@@ -115,7 +115,7 @@ Lanczos 只重采样、放大后偏软，所以默认叠一道轻度锐化（`up
 ```yaml
 - insert:
     - id: gpt-image
-      name: '@local/dsh-gpt-image'
+      name: '@aliax-li/dsh-gpt-image'
       config:
         baseUrl: https://api.example.com    # 你的 OpenAI 兼容网关
         apiKey: ''            # 也可以留空，改用 GPT_IMAGE_API_KEY
@@ -143,21 +143,32 @@ Lanczos 只重采样、放大后偏软，所以默认叠一道轻度锐化（`up
 
 ## 安装
 
-仓库根目录就是插件包，直接填 git 地址即可：
+想要在 DSH 里检查并安装后续版本，请按下方「更新」一节从 **Plugins → Discover** 安装。直接填 Git 地址仍可用于临时安装或测试，但 DSH 不会把普通 Git 安装自动关联到市场索引；它不会获得 Discover 的版本更新入口。
 
-```
-https://github.com/Aliax-LI/dsh-gpt-image.git
-```
+本地开发可克隆仓库后，在 **Plugins → Add plugin** 指向本地目录：
 
-`github:Aliax-LI/dsh-gpt-image` 这类简写同样可用。在 **Plugins → Add plugin** 填上面任一种，或让 agent 执行：
-
-```json
-{ "action": "install_bundle", "target": "https://github.com/Aliax-LI/dsh-gpt-image.git" }
+```bash
+git clone https://github.com/Aliax-LI/dsh-gpt-image.git
+cd dsh-gpt-image && pnpm install
 ```
 
-pnpm 会拉仓库并自动装唯一依赖 `@deepseek-ai/schemastery`。装完在 **设置 → GPT Image** 填 `base_url` 与 `API Key` 即可（字段全部 volatile，改完即时生效）。
+本地目录链接用于开发，不支持通过市场更新。
 
-本地开发：
+## 更新
+
+插件更新由 DSH 的 **Plugins → Discover** 管理。先在 **Plugins → Experimental plugins** 启用 **Custom plugin indexes**，在 **Discover → Add index source** 添加本仓库索引：
+
+```
+https://raw.githubusercontent.com/Aliax-LI/dsh-gpt-image/main/plugin-index.json
+```
+
+从这个索引安装后，DSH 会按固定 Git commit 安装版本，并在 **Plugins → Installed** 中提供版本检查和 **Update**。更新时 DSH 会校验目标包名、版本和兼容性；安装失败会尝试恢复旧版本。
+
+**注意：已通过本地目录或 Git 地址直接安装的旧版本不能原位转换为可更新安装。** 当前 profile 若显示 `link:` 来源（例如本地开发目录），请先备份该插件的接口地址与 API Key，在 **Plugins → Installed** 移除旧包，再从 **Discover** 安装；然后在 **设置 → GPT Image** 重新填写配置。不要在仍依赖旧本地目录时移除它。
+
+发布者将 `package.json` 版本号更新并推送对应 `vX.Y.Z` tag 后，GitHub Actions 会验证 tag 对应的包名和版本，并把完整 commit SHA 加入市场索引。只推送普通分支提交不会发布更新；版本 tag 应指向完整、可用的 release 提交。
+
+## 本地开发
 
 ```bash
 git clone https://github.com/Aliax-LI/dsh-gpt-image.git

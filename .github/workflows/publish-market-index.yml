@@ -1,0 +1,42 @@
+name: Publish plugin market version
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: plugin-market-index
+  cancel-in-progress: false
+
+jobs:
+  publish-index:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check out index branch
+        run: |
+          git fetch origin main:refs/remotes/origin/main
+          git switch --force-create main origin/main
+
+      - name: Add version to market index
+        run: node scripts/update-market-index.mjs "${GITHUB_REF_NAME}"
+
+      - name: Commit index update
+        run: |
+          if git diff --quiet -- plugin-index.json; then
+            echo "Market index already contains this release."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add plugin-index.json
+          git commit -m "chore: index ${GITHUB_REF_NAME}"
+          git push origin HEAD:main

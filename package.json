@@ -1,6 +1,6 @@
 {
-  "name": "@local/dsh-gpt-image",
-  "version": "0.6.0",
+  "name": "@aliax-li/dsh-gpt-image",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "DSH plugin: GPT Image reverse-channel generation/editing with a cross-platform 4K upscale chain and a native settings page.",

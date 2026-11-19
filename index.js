@@ -5,7 +5,7 @@
  * 模型清单**以账号 `GET /v1/models` 为准**，插件不自带白名单；内置表只记录每个模型
  * 实际吃什么参数（size 生效、quality 收但不保证、format 与 transparent
  * 被通道忽略、mask 走改图接口）。目录外的模型走透传，报错按网关为准。
- * @module @local/dsh-gpt-image
+ * @module @aliax-li/dsh-gpt-image
  */
 import { stat } from 'node:fs/promises'
 import { dirname } from 'node:path'

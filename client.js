@@ -1,7 +1,7 @@
 // gpt-image 客户端半：设置页面板。
 // 视觉与交互跟随设置页原生样式：左标签 + 右控件、细分隔线、开关与下拉；不使用品牌绿。
 window.__ModuleLoader__.load({
-  id: '@local/dsh-gpt-image',
+  id: '@aliax-li/dsh-gpt-image',
   factory(require) {
     const React = require('react')
     const h = React.createElement

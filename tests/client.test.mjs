@@ -26,7 +26,7 @@ const React = {
 await import(new URL('../client.js', import.meta.url).href)
   .catch((error) => check('client.js 可导入', false, error.message))
 
-check('模块 id 正确', captured?.id === '@local/dsh-gpt-image', String(captured?.id))
+check('模块 id 正确', captured?.id === '@aliax-li/dsh-gpt-image', String(captured?.id))
 const exported = captured?.factory((name) => {
   if (name === 'react') return React
   throw new Error(`unexpected require ${name}`)
