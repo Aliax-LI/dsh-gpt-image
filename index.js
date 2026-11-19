@@ -8,7 +8,7 @@
  * @module @local/dsh-gpt-image
  */
 import { access } from 'node:fs/promises'
-import { isAbsolute, resolve } from 'node:path'
+import { dirname, isAbsolute, resolve } from 'node:path'
 
 import {
   callEdit,
@@ -266,6 +266,8 @@ export async function apply(ctx, config = {}) {
         localNotes.push(`\`${modelId}\` 不在账号模型清单里（${catalog.join(', ')}）；仍按该 id 发送。`)
       }
       const gated = gate(request, spec)
+      // 改图的响应体是大块 base64，网关容易在中途 reset；默认改要直链，只回一个 URL。
+      if (gated.params.responseFormat == null && mode === 'edit') gated.params.responseFormat = 'url'
       localNotes.push(...gated.notes)
 
       let images = []
@@ -307,19 +309,45 @@ export async function apply(ctx, config = {}) {
     })
 
     let plan = await prepare(requestedModel)
-    let payloads
-    try {
-      payloads = await fire(plan)
-    } catch (error) {
-      const message = String(error?.message ?? error)
-      const fallback = settings.autoFallback && !explicitModel && /model_not_found/.test(message)
-        ? await pickFallback(settings, exec.signal, plan.model)
-        : undefined
-      if (fallback == null) throw error
-      notes.push(`\`${plan.model}\` 在当前账号不可用（model_not_found），已回退到 \`${fallback}\`。`)
-      plan = await prepare(fallback)
-      payloads = await fire(plan)
+    /** 传输层问题（体停滞 / 连接被 reset / 超时）换一种响应形态再试一次。 */
+    const isTransportFailure = (message) => /停滞|terminated|other side closed|Connection reset|请求超时|fetch failed|ECONNRESET/i.test(message)
+
+    const fireWithRecovery = async () => {
+      try {
+        return await fire(plan)
+      } catch (error) {
+        const message = String(error?.message ?? error)
+
+        // 1) 模型不在分组里：自动换一个账号可用的模型
+        if (settings.autoFallback && !explicitModel && /model_not_found/.test(message)) {
+          const fallback = await pickFallback(settings, exec.signal, plan.model)
+          if (fallback != null) {
+            notes.push(`\`${plan.model}\` 在当前账号不可用（model_not_found），已回退到 \`${fallback}\`。`)
+            plan = await prepare(fallback)
+            return fire(plan)
+          }
+        }
+
+        // 2) 响应体传输出问题：b64 与直链互换后重试一次
+        if (isTransportFailure(message) && plan.formatSwitched !== true) {
+          const next = plan.params.responseFormat === 'url' ? null : 'url'
+          notes.push(next === 'url'
+            ? '响应体传输被中断，改用直链（response_format=url）重试一次。'
+            : '直链结果取不到，改用 b64_json 重试一次。')
+          plan = {
+            ...plan,
+            formatSwitched: true,
+            params: { ...plan.params, responseFormat: next ?? undefined },
+          }
+          if (next == null) delete plan.params.responseFormat
+          return fire(plan)
+        }
+
+        throw error
+      }
     }
+
+    let payloads = await fireWithRecovery()
     notes.push(...plan.notes)
 
     const gather = async (list) => {
@@ -378,8 +406,10 @@ export async function apply(ctx, config = {}) {
           && Math.abs(file.height - height) / height <= 0.1
       })
 
+    const dir = dirname(files[0].path)
     const lines = [
       `${mode === 'edit' ? '改图' : '出图'}完成：${files.length} 张 · ${plan.model} · ${(elapsedMs / 1000).toFixed(1)}s`,
+      `目录：${dir}`,
       ...files.map((file, index) => `${index + 1}. ${file.path}（${file.width}×${file.height}，${Math.round(file.bytes / 1024)} KB）`),
     ]
     if (apiFiles.length > count) {
@@ -688,8 +718,15 @@ export async function apply(ctx, config = {}) {
       if (Object.keys(patch).length === 0) throw new Error('set 需要至少一个字段：baseUrl / apiKey / models / defaultModel / outputDir / timeoutMs')
 
       await editor.edit(entry, (current) => ({ ...current, ...patch }))
-      const next = resolveSettings(readConfig(config), patch)
+      // 回读生效值：volatile 字段在 reload 后才会更新，不能拿 patch 当结果报给用户。
+      await new Promise((resolveWait) => setTimeout(resolveWait, 250))
+      const next = resolveSettings(readConfig(config), {})
       const shown = publicSettings({ ...next, models: next.models.length > 0 ? next.models : effective })
+      const staleFields = Object.keys(patch).filter((key) => {
+        const written = patch[key]
+        const live = next[key === 'models' ? 'models' : key]
+        return Array.isArray(written) ? JSON.stringify(written) !== JSON.stringify(live) : String(written) !== String(live)
+      })
       return {
         summary: [
           '配置已写入 profile 并热重载：',
@@ -699,8 +736,12 @@ export async function apply(ctx, config = {}) {
           `- 模型清单：${shown.models.join(', ') || '（以 /v1/models 为准）'}`,
           `- 产物目录：${shown.outputDir}`,
           `- 超时：${shown.timeoutMs}ms`,
-        ].join('\n'),
+          staleFields.length > 0
+            ? `注意：${staleFields.join(' / ')} 还没在当前实例生效，重启一次 DSH 后确认。`
+            : '',
+        ].filter((line) => line !== '').join('\n'),
         settings: shown,
+        staleFields,
       }
     },
   })

@@ -8,8 +8,10 @@ import { mkdir, writeFile, rm, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { apply } from '../index.js'
+
+const hostSource = await readFile(new URL('../index.js', import.meta.url), 'utf8')
 import { DEFAULT_MODEL, KNOWN_MODELS, modelSpec, normalizeModels } from '../lib/models.js'
-import { fetchImageModels, resolveSettings, withSizeHint } from '../lib/api.js'
+import { baseDir, callGeneration, fetchImageModels, resolveSettings, withSizeHint } from '../lib/api.js'
 
 const LIVE = process.argv.includes('--live')
 const results = []
@@ -57,6 +59,12 @@ check('陌生 id 透传', modelSpec('dall-e-3').known === false && modelSpec('da
 check('新 gpt-image 型号按 2.5/2 闸门', !modelSpec('gpt-image-3').outputFormats.includes('svg') && modelSpec('gpt-image-3').size === true)
 check('尺寸写进提示词的兜底可用', withSizeHint('一只橘猫', '1536x1024').includes('画面比例 3:2'))
 
+// --- 1b. 产物目录解析 ------------------------------------------------------
+check('相对目录按会话展开', baseDir('/s/proj', 'gpt-image-output') === '/s/proj/gpt-image-output', baseDir('/s/proj', 'gpt-image-output'))
+check('绝对目录原样使用', baseDir('/s/proj', '/Users/x/temu') === '/Users/x/temu', baseDir('/s/proj', '/Users/x/temu'))
+check('~ 展开到家目录', baseDir('/s/proj', '~/Pictures/out').endsWith('/Pictures/out') && !baseDir('/s/proj', '~/Pictures/out').includes('/s/proj'), baseDir('/s/proj', '~/Pictures/out'))
+check('空目录退回会话目录', baseDir('/s/proj', '') === '/s/proj')
+
 // --- 2. 注册（不发请求） --------------------------------------------------
 const { ctx, tools } = fakeContext()
 await apply(ctx, { ...CONFIG, baseUrl: 'http://127.0.0.1:9', timeoutMs: 1500, apiKey: '' })
@@ -96,10 +104,42 @@ const noBase = await (async () => {
   if (savedKey !== undefined) process.env.GPT_IMAGE_API_KEY = savedKey
   return out
 })()
+check('改图默认走直链响应', hostSource.includes("mode === 'edit') gated.params.responseFormat = 'url'"))
+check('传输失败会换路重试', hostSource.includes('isTransportFailure') && hostSource.includes('formatSwitched'))
+check('摘要里给出落盘目录', hostSource.includes('`目录：${dir}`'))
 check('缺 base_url 报可操作错误', /缺少 base_url/.test(noBase.error ?? ''), noBase.error ?? '')
 
 const badSize = await generate.execute({ prompt: 'x', size: 'huge', apiKey: CONFIG.apiKey || 'probe-only' }, { signal: new AbortController().signal }).catch((error) => ({ error: String(error?.message ?? error) }))
 check('非法尺寸被拒', /尺寸格式/.test(badSize.error ?? ''), badSize.error ?? '')
+
+// 超时必须给出可操作提示：本地起一个只接受不响应的服务
+{
+  const { createServer } = await import('node:http')
+  const server = createServer(() => { /* 故意不响应 */ })
+  await new Promise((resolveReady) => server.listen(0, '127.0.0.1', resolveReady))
+  const port = server.address().port
+  const settings = resolveSettings({ baseUrl: `http://127.0.0.1:${port}`, apiKey: 'sk-probe', timeoutMs: 400 }, {})
+  const error = await callGeneration({ model: 'x', prompt: 'x' }, settings, new AbortController().signal)
+    .then(() => 'no error')
+    .catch((err) => String(err?.message ?? err))
+  server.close()
+  check('超时错误可操作', /请求超时 400ms/.test(error) && /调大/.test(error), error.slice(0, 80))
+}
+
+// 响应体停滞：头部到了但 body 不动，应在阈值内失败而不是干等总超时
+{
+  const { createServer } = await import('node:http')
+  const server = createServer((req, res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.write('{"data":[') })
+  await new Promise((resolveReady) => server.listen(0, '127.0.0.1', resolveReady))
+  const port = server.address().port
+  const settings = resolveSettings({ baseUrl: `http://127.0.0.1:${port}`, apiKey: 'sk-probe', timeoutMs: 30000, bodyStallMs: 2000 }, {})
+  const started = Date.now()
+  const message = await callGeneration({ model: 'x', prompt: 'x' }, settings, new AbortController().signal)
+    .then(() => 'no error')
+    .catch((err) => String(err?.message ?? err))
+  server.close()
+  check('体停滞快速失败', /停滞/.test(message) && Date.now() - started < 15000, `${Date.now() - started}ms · ${message.slice(0, 50)}`)
+}
 
 if (!LIVE) {
   const failed = results.filter((row) => !row.ok)

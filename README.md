@@ -30,10 +30,11 @@
 | `background` | `auto` `opaque` `transparent` |
 | `response_format` | `b64_json`（默认）或 `url` |
 | `count` | 1–5，默认 1（客户端并发，服务端不发 `n`） |
-| `out` | 纯文件名 → `<工作目录>/gpt-image-output/`；带目录 → 按该路径；多张自动 `-1` `-2` |
+| `out` | 纯文件名 → 产物目录（默认 `<工作目录>/gpt-image-output/`）；带目录 → 按该路径；多张自动 `-1` `-2` |
 | `target_long_edge` | 生成后自动放大到该长边，`3840` = 4K |
 | `upscale` / `sharpen` | 本次使用的放大引擎与锐化强度 |
-| `timeoutMs` | 单次请求超时，默认 300000 |
+| `timeoutMs` | 单次请求超时，默认 600000 |
+| `bodyStallMs` | 响应体停滞多久判失败，默认 30000 |
 
 ### `gpt_image_edit`
 
@@ -121,7 +122,7 @@ Lanczos 只重采样、放大后偏软，所以默认叠一道轻度锐化（`up
         defaultModel: gpt-image-2.6-flare
         models: []            # 留空 = 以账号 /v1/models 为准
         outputDir: gpt-image-output
-        timeoutMs: 300000
+        timeoutMs: 600000
         autoFallback: true
         upscaleEngine: auto
         upscaleTargetLongEdge: 0    # 0 = 不自动放大；3840 = 4K
@@ -133,7 +134,11 @@ Lanczos 只重采样、放大后偏软，所以默认叠一道轻度锐化（`up
 
 ## 输出
 
-`out` 只给纯文件名时落到**会话工作目录**的 `gpt-image-output/`；给带目录的路径就按该路径。每次返回每张图的绝对路径、像素宽高、字节数、`revised_prompt`，以及被通道忽略的参数原因。
+`out` 只给纯文件名时落到**会话工作目录**下的产物目录；给带目录的路径就按该路径。`outputDir` 支持相对路径、绝对路径与 `~/...`，填绝对路径时不会再被拼到会话目录里。
+
+每次返回开头就写明**落盘目录**，随后是每张图的绝对路径、像素宽高、字节数、`revised_prompt`，以及被通道忽略的参数原因。
+
+改图默认让网关回**直链**（`response_format=url`）：改图的响应体是大块 base64，网关容易在传输中途断开，只回一个 URL 就绕开了这个问题；直链取不到时自动改用 `b64_json`。另外加了**响应体停滞检测**——头部到了但 body 长时间没有新数据就立即失败并换路重试，不会干等到总超时。
 
 ## 安装
 
