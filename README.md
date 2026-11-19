@@ -2,10 +2,10 @@
 
 把 GPT Image **官逆**通道接进 DSH，一条链路做完「出图 → 改图 → 补到 4K」。
 
-- **出图**：一句提示词出图，自动落到会话目录，返回绝对路径与像素尺寸。
+- **出图**：一句提示词出图，保存到指定的绝对路径，返回绝对路径与像素尺寸。
 - **改图**：按指令编辑、换风格、多图融合、套蒙版，最多 16 张参考图。
 - **补 4K**：官逆原生短边上限约 1536，落盘后按目标长边在本机放大（Real-ESRGAN / ffmpeg Lanczos3 / Pillow / ImageMagick / sips），macOS、Windows、Linux 通用。
-- **一页配置**：**设置 → GPT Image** 里管接口、模型清单、产物目录与放大参数，改完即时生效。
+- **一页配置**：**设置 → GPT Image** 里管接口、模型清单与放大参数，改完即时生效。
 
 走 OpenAI 兼容的 `/v1/images/generations` 与 `/v1/images/edits`，所以任何提供这两个端点的兼容网关都能接。模型清单**以账号 `/v1/models` 为准**，插件不带白名单。
 
@@ -30,7 +30,7 @@
 | `background` | `auto` `opaque` `transparent` |
 | `response_format` | `b64_json`（默认）或 `url` |
 | `count` | 1–5，默认 1（客户端并发，服务端不发 `n`） |
-| `out` | 纯文件名 → 产物目录（默认 `<工作目录>/gpt-image-output/`）；带目录 → 按该路径；多张自动 `-1` `-2` |
+| `out`（必填） | 输出文件的绝对路径，包含文件名。自动创建父目录，多张自动加 `-1`、`-2` |
 | `target_long_edge` | 生成后自动放大到该长边，`3840` = 4K |
 | `upscale` / `sharpen` | 本次使用的放大引擎与锐化强度 |
 | `timeoutMs` | 单次请求超时，默认 600000 |
@@ -38,17 +38,17 @@
 
 ### `gpt_image_edit`
 
-`prompt` + `images`（1–16 张，顺序即「图1 / 图2」）+ 可选 `mask`；其余参数同出图。改图、融合建议用 `gpt-image-2.6-sunburst` 或 `gpt-image-2.5-sunburst`（编辑精度优先）。
+`prompt` + `images`（1–16 张，顺序即「图1 / 图2」）+ 可选 `mask`。`images` 和 `mask` 都使用实际文件的绝对路径。`out` 必填，其余参数同出图。改图、融合建议用 `gpt-image-2.6-sunburst` 或 `gpt-image-2.5-sunburst`（编辑精度优先）。
 
 ### `gpt_image_upscale`
 
-`path`（必填）、`target_long_edge`、`factor`、`engine`、`sharpen`、`out`。倍数上限 4×，要更大就先用更大的 `size` 出图；SVG（矢量）与 GIF（可能是动图）默认跳过。
+`path`（必填）、`target_long_edge`、`factor`、`engine`、`sharpen`、`out`。`path` 和指定的 `out` 都使用文件的绝对路径。省略 `out` 时，在源图旁保存为 `原文件名@长边像素.扩展名`。倍数上限 4×，要更大就先用更大的 `size` 出图；SVG（矢量）与 GIF（可能是动图）默认跳过。
 
 ### `gpt_image_config`
 
 - `show`：生效配置（密钥打码）与当前模型清单。
 - `models`：拉 `/v1/models`，列出账号实际可用的图片模型；报 `model_not_found` 时先跑它。
-- `set`：写 `baseUrl` / `apiKey` / `models` / `defaultModel` / `outputDir` / `timeoutMs` 等，落盘并热重载。
+- `set`：写 `baseUrl` / `apiKey` / `models` / `defaultModel` / `timeoutMs` 等，落盘并热重载。
 
 ## 模型与参数
 
@@ -121,7 +121,6 @@ Lanczos 只重采样、放大后偏软，所以默认叠一道轻度锐化（`up
         apiKey: ''            # 也可以留空，改用 GPT_IMAGE_API_KEY
         defaultModel: gpt-image-2.6-flare
         models: []            # 留空 = 以账号 /v1/models 为准
-        outputDir: gpt-image-output
         timeoutMs: 600000
         autoFallback: true
         upscaleEngine: auto
@@ -130,11 +129,13 @@ Lanczos 只重采样、放大后偏软，所以默认叠一道轻度锐化（`up
         realesrganPath: ''
 ```
 
-优先级：工具参数 > 插件行 config > 环境变量（`GPT_IMAGE_BASE_URL` / `GPT_IMAGE_API_KEY` / `GPT_IMAGE_MODEL` / `GPT_IMAGE_MODELS` / `GPT_IMAGE_OUTPUT_DIR` / `GPT_IMAGE_UPSCALE` / `GPT_IMAGE_REALESRGAN`）> 缺省值。
+优先级：工具参数 > 插件行 config > 环境变量（`GPT_IMAGE_BASE_URL` / `GPT_IMAGE_API_KEY` / `GPT_IMAGE_MODEL` / `GPT_IMAGE_MODELS` / `GPT_IMAGE_UPSCALE` / `GPT_IMAGE_REALESRGAN`）> 缺省值。
 
 ## 输出
 
-`out` 只给纯文件名时落到**会话工作目录**下的产物目录；给带目录的路径就按该路径。`outputDir` 支持相对路径、绝对路径与 `~/...`，填绝对路径时不会再被拼到会话目录里。
+生成和改图时，用 `out` 指定完整文件路径，例如 Windows 的 `D:/项目/轮播图/01.png`，或 macOS/Linux 的 `/home/user/项目/轮播图/01.png`。图片参数需要包含文件名，Windows 路径需要盘符或 UNC 共享名。模型返回的实际格式决定扩展名，写入时会覆盖同名文件。后续改图或放大可直接使用上一步返回的绝对路径。
+
+从旧版升级后，设置页移除了产物目录，旧 `outputDir` 和 `GPT_IMAGE_OUTPUT_DIR` 值会被忽略。
 
 每次返回开头就写明**落盘目录**，随后是每张图的绝对路径、像素宽高、字节数、`revised_prompt`，以及被通道忽略的参数原因。
 
@@ -165,7 +166,7 @@ cd dsh-gpt-image && pnpm install
 
 然后 **Plugins → Add plugin** 指向这个目录。
 
-宿主端（工具与 HTTP 端点）改动需要重启一次 DSH 才会加载新的 module generation；客户端半随页面刷新生效。
+宿主端（工具与 HTTP 端点）改动需要重启一次 DSH 才会加载新的 module generation；客户端更新后刷新页面即可。
 
 ## 开发
 

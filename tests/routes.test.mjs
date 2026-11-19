@@ -4,7 +4,7 @@
  * `node tests/routes.test.mjs`        只测 GET/POST（不联网）
  * `node tests/routes.test.mjs --live` 额外跑一次真出图 + 4K 放大
  */
-import { mkdir, rm } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { apply } from '../index.js'
@@ -86,7 +86,10 @@ check('GET /config 带放大字段', ['upscaleEngine', 'upscaleTargetLongEdge', 
 check('GET /config 不回明文密钥', got.body.raw.apiKey === '' && got.body.raw.apiKeyConfigured === true, String(got.body.raw.apiKeyConfigured))
 check('GET /config 报告本机放大能力', Array.isArray(got.body.upscale?.engines), (got.body.upscale?.engines ?? []).join('/'))
 
+check('旧产物目录不会出现在新接口中', got.body.api === 3 && !('outputDir' in got.body.raw) && !('outputDir' in got.body.settings))
+
 const saved = await callRoute('/gpt-image/config', 'POST', {
+  outputDir: 'legacy-client',
   baseUrl: 'https://example.com',
   modelsText: 'gpt-image-2.6-flare, gpt-image-2.6-sunburst',
   upscaleEngine: 'ffmpeg',
@@ -96,6 +99,8 @@ const saved = await callRoute('/gpt-image/config', 'POST', {
 check('POST /config 走 settings.update', saved.status === 200 && writes.length === 1, JSON.stringify(writes[0]?.ns))
 check('POST 解析模型清单', (writes[0]?.patch?.models ?? []).length === 2, (writes[0]?.patch?.models ?? []).join(','))
 check('POST 带上放大设置', writes[0]?.patch?.upscaleTargetLongEdge === 3840 && writes[0]?.patch?.upscaleSharpen === 0.6)
+
+check('旧客户端的产物目录不会写回', !('outputDir' in writes[0].patch))
 
 const empty = await callRoute('/gpt-image/config', 'POST', {})
 check('空 patch 被拒', empty.body.ok === false, empty.body.error ?? '')
@@ -162,7 +167,6 @@ if (!LIVE) {
 
 // --- 真机：出图 + 4K 放大 ---------------------------------------------------
 const outDir = join(process.cwd(), 'route-test-output')
-await rm(outDir, { recursive: true, force: true })
 await mkdir(outDir, { recursive: true })
 
 const tools = new Map()
@@ -172,7 +176,7 @@ const ctx = {
   get: () => undefined,
   fiber: { entry: { id: 'gpt-image', options: { id: 'gpt-image' } } },
 }
-await apply(ctx, { ...CONFIG, outputDir: 'route-test-output' })
+await apply(ctx, CONFIG)
 const exec = { signal: new AbortController().signal }
 
 const generated = await tools.get('gpt_image_generate').execute({
@@ -180,7 +184,7 @@ const generated = await tools.get('gpt_image_generate').execute({
   size: '1536x1024',
   target_long_edge: 3840,
   upsampleNote: undefined,
-  out: 'gear-full.png',
+  out: join(outDir, 'gear-full.png'),
   timeoutMs: 300_000,
 }, exec)
 const file = generated.files[0]
@@ -201,7 +205,9 @@ const tooBig = await tools.get('gpt_image_upscale').execute({ path: file.path, f
   .catch((error) => ({ error: String(error?.message ?? error) }))
 check('倍数超限被拒', /超过上限/.test(tooBig.error), tooBig.error)
 
-const svg = await tools.get('gpt_image_upscale').execute({ path: 'gpt-image-output/gear.svg', target_long_edge: 4000 }, exec)
+const svgPath = join(outDir, 'gear.svg')
+await writeFile(svgPath, '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"/>')
+const svg = await tools.get('gpt_image_upscale').execute({ path: svgPath, target_long_edge: 4000 }, exec)
 check('SVG 跳过并说明', svg.skipped === true, svg.summary?.split('\n')[0] ?? '')
 
 const failed = rows.filter((row) => !row.ok)

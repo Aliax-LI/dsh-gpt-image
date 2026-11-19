@@ -7,8 +7,8 @@
  * 被通道忽略、mask 走改图接口）。目录外的模型走透传，报错按网关为准。
  * @module @local/dsh-gpt-image
  */
-import { access } from 'node:fs/promises'
-import { dirname, isAbsolute, resolve } from 'node:path'
+import { stat } from 'node:fs/promises'
+import { dirname } from 'node:path'
 
 import {
   callEdit,
@@ -25,6 +25,7 @@ import {
 } from './lib/api.js'
 import { DEFAULT_MODEL, KNOWN_MODELS, describeModels, modelSpec } from './lib/models.js'
 import { Config, readConfig } from './lib/config.js'
+import { IMAGE_PATH_EXAMPLE, requireImagePath } from './lib/image.js'
 import { UPSCALE_ENGINES, upscaleGenerated, upscaleImage, upscaleStatus } from './lib/upscale.js'
 import { registerRoutes } from './lib/routes.js'
 
@@ -69,7 +70,7 @@ const renderResult = (_args, value) => [{ type: 'text', text: String(value?.summ
 /**
  * 注册出图 / 改图 / 配置三个工具。
  * @param ctx - 插件上下文。
- * @param config - 插件行 config：`baseUrl` / `apiKey` / `models` / `defaultModel` / `outputDir` / `timeoutMs`。
+ * @param config - 插件行 config：`baseUrl` / `apiKey` / `models` / `defaultModel` / `timeoutMs`。
  */
 export async function apply(ctx, config = {}) {
   const current = () => resolveSettings(readConfig(config), {})
@@ -83,18 +84,6 @@ export async function apply(ctx, config = {}) {
   const catalogLine = catalog.includes(base.defaultModel)
     ? ''
     : `\n注意：配置的默认模型 ${base.defaultModel} 不在账号清单里，实际默认用 ${defaultModel}。`
-
-  const cwdOf = async (exec) => {
-    const workingDirectory = ctx.get('workingDirectory')
-    if (workingDirectory != null && exec?.agent != null) {
-      try {
-        return await workingDirectory.ensure(exec.agent, exec.signal)
-      } catch {
-        // 目录恢复失败时退回进程目录，别让出图任务连带失败。
-      }
-    }
-    return process.cwd()
-  }
 
   /**
    * 按模型能力裁剪参数；被丢弃的字段转成 notes 回给调用方。
@@ -181,13 +170,12 @@ export async function apply(ctx, config = {}) {
 
   const requestformatAliased = (request) => request.format != null && request.output_format == null
 
-  const resolveInput = async (path, cwd, label) => {
-    const target = isAbsolute(path) ? path : resolve(cwd, path)
-    try {
-      await access(target)
-    } catch {
-      throw new Error(`${label}不存在：${target}`)
-    }
+  const resolveInput = async (path, label) => {
+    const target = requireImagePath(path, label)
+    const info = await stat(target).catch((error) => {
+      throw new Error(`${label} 无法读取 ${target}（${error.code ?? error.message}）`, { cause: error })
+    })
+    if (!info.isFile()) throw new Error(`${label} 必须指向文件：${target}`)
     return target
   }
 
@@ -239,6 +227,16 @@ export async function apply(ctx, config = {}) {
    * @returns 工具返回值。
    */
   const run = async (request, exec, mode) => {
+    const out = requireImagePath(request.out, 'out')
+    let images = []
+    let maskPath
+    if (mode === 'edit') {
+      const list = request.images
+      if (!Array.isArray(list) || list.length === 0) throw new Error('改图需要至少一张输入图片，请传入 images 数组。')
+      if (list.length > MAX_IMAGES) throw new Error(`一次最多 ${MAX_IMAGES} 张输入图片，收到 ${list.length} 张`)
+      images = await Promise.all(list.map((item, index) => resolveInput(item, `images[${index}]`)))
+      if (request.mask !== undefined) maskPath = await resolveInput(request.mask, 'mask')
+    }
     const settings = resolveSettings(readConfig(config), request)
     if (settings.baseUrl == null || settings.baseUrl === '') {
       throw new Error('缺少 base_url：在 设置 → GPT Image 填 OpenAI 兼容网关地址，或设置环境变量 GPT_IMAGE_BASE_URL。')
@@ -250,16 +248,15 @@ export async function apply(ctx, config = {}) {
     const explicitModel = typeof request.model === 'string' && request.model.trim() !== ''
     const requestedModel = explicitModel ? request.model.trim() : (catalog.includes(settings.defaultModel) ? settings.defaultModel : catalog[0] ?? DEFAULT_MODEL)
     const notes = []
-    const cwd = await cwdOf(exec)
     const count = clamp(request.count, 1, MAX_COUNT, 1)
     const started = Date.now()
 
     /**
-     * 按给定模型把参数过一遍闸门，并解析改图输入。
+     * 按给定模型把参数过一遍闸门。
      * @param modelId - 本次实际发送的模型 id。
      * @returns 本次请求的计划。
      */
-    const prepare = async (modelId) => {
+    const prepare = (modelId) => {
       const spec = modelSpec(modelId)
       const localNotes = []
       if (!catalog.includes(modelId)) {
@@ -270,20 +267,8 @@ export async function apply(ctx, config = {}) {
       if (gated.params.responseFormat == null) gated.params.responseFormat = 'url'
       localNotes.push(...gated.notes)
 
-      let images = []
-      let maskPath
-      if (mode === 'edit') {
-        const list = Array.isArray(request.images)
-          ? request.images.filter((item) => typeof item === 'string' && item.trim() !== '')
-          : []
-        if (list.length === 0) throw new Error('改图需要至少一张输入图片：传 images 数组')
-        if (list.length > MAX_IMAGES) throw new Error(`一次最多 ${MAX_IMAGES} 张输入图片，收到 ${list.length} 张`)
-        images = await Promise.all(list.map((item) => resolveInput(item, cwd, '输入图片')))
-        if (request.mask != null && gated.maskSupport !== 'none') {
-          maskPath = await resolveInput(request.mask, cwd, '蒙版图片')
-        }
-      }
-      return { model: modelId, spec, prompt: gated.prompt, params: gated.params, images, maskPath, notes: localNotes }
+      const mask = gated.maskSupport === 'none' ? undefined : maskPath
+      return { model: modelId, spec, prompt: gated.prompt, params: gated.params, images, maskPath: mask, notes: localNotes }
     }
 
     /**
@@ -308,7 +293,7 @@ export async function apply(ctx, config = {}) {
         : callGeneration(call, settings, exec.signal)
     })
 
-    let plan = await prepare(requestedModel)
+    let plan = prepare(requestedModel)
     /** 传输层问题（体停滞 / 连接被 reset / 超时）换一种响应形态再试一次。 */
     const isTransportFailure = (message) => /停滞|terminated|other side closed|Connection reset|请求超时|fetch failed|ECONNRESET/i.test(message)
 
@@ -323,7 +308,7 @@ export async function apply(ctx, config = {}) {
           const fallback = await pickFallback(settings, exec.signal, plan.model)
           if (fallback != null) {
             notes.push(`\`${plan.model}\` 在当前账号不可用（model_not_found），已回退到 \`${fallback}\`。`)
-            plan = await prepare(fallback)
+            plan = prepare(fallback)
             return fire(plan)
           }
         }
@@ -373,12 +358,7 @@ export async function apply(ctx, config = {}) {
       } else throw error
     }
 
-    const apiFiles = await saveItems(items, {
-      cwd,
-      outputDir: settings.outputDir,
-      mode,
-      out: typeof request.out === 'string' ? request.out : undefined,
-    })
+    const apiFiles = await saveItems(items, out)
     // 官逆到不了 4K：给了目标长边就在落盘后接放大链路。
     const targetLongEdge = request.target_long_edge != null
       ? clamp(request.target_long_edge, 0, 8192, 0)
@@ -471,11 +451,11 @@ export async function apply(ctx, config = {}) {
           images: {
             type: 'array',
             items: { type: 'string' },
-            description: `输入图片路径，1–${MAX_IMAGES} 张，按顺序即「图1/图2」。相对路径按会话工作目录解析。`,
+            description: `输入图片的绝对路径，1–${MAX_IMAGES} 张，按顺序即「图1/图2」。使用附件或文件工具确认过的实际路径。`,
           },
           mask: {
             type: 'string',
-            description: '可选蒙版图（PNG 带 alpha），只对第一张输入图生效，走改图接口的 mask 字段。',
+            description: '可选蒙版 PNG 文件的绝对路径（带 alpha），只对第一张输入图生效。',
           },
         }
         : {},
@@ -509,7 +489,7 @@ export async function apply(ctx, config = {}) {
       },
       out: {
         type: 'string',
-        description: '输出名或路径：纯文件名落到工作目录下的 gpt-image-output/；带目录则按该路径。多张时自动加 -1/-2 后缀。',
+        description: `输出文件的绝对路径（含文件名），例如 ${IMAGE_PATH_EXAMPLE}。自动创建父目录，多张加 -1/-2，扩展名以实际格式为准。同名文件会被覆盖。`,
       },
       timeoutMs: { type: 'integer', description: `单次请求超时，默认 ${base.timeoutMs}。` },
       target_long_edge: {
@@ -526,7 +506,7 @@ export async function apply(ctx, config = {}) {
         description: '放大后锐化强度 0–1.5（默认取配置 0.5）：Lanczos 放大偏软，轻度 unsharp 更接近原生 4K。',
       },
     },
-    required: mode === 'edit' ? ['prompt', 'images'] : ['prompt'],
+    required: mode === 'edit' ? ['prompt', 'images', 'out'] : ['prompt', 'out'],
   })
 
   const register = (definition) => ctx.effect(() => ctx.tools.register(definition))
@@ -534,10 +514,10 @@ export async function apply(ctx, config = {}) {
   register({
     name: 'gpt_image_generate',
     description: [
-      '文生图：用 GPT Image 官逆通道把提示词画成图片并存到工作目录。用户说画、生成、出图、做海报/插画/封面时用它。',
+      '文生图：用 GPT Image 官逆通道把提示词画成图片并保存到指定文件。用户说画、生成、出图、做海报/插画/封面时用它。',
       `模型清单以账号 /v1/models 为准，当前：${catalog.join(', ')}；默认 ${defaultModel}。`,
       '参数面：size 按需生效；output_format 支持 png/jpeg/webp，2.6 系另加 gif/svg（gif/svg 不跟 size）；quality 接受但不保证；transparent 不出透明底；mask 走改图。',
-      '默认只出 1 张，用户明确要多张才用 count（≤5）。默认把图片存到工作目录的 gpt-image-output/，纯文件名即可。',
+      '默认只出 1 张，用户明确要多张才用 count（≤5）。',
       '要 4K 大图：先按 size 出到原生上限（短边 ≤1536），再传 target_long_edge=3840 走本机放大链路（Lanczos 保真 / Real-ESRGAN 补细节）。',
       '返回每张图的绝对路径与像素尺寸；被丢弃的参数会在 notes 里说明原因。',
     ].join('\n'),
@@ -548,7 +528,7 @@ export async function apply(ctx, config = {}) {
       card: 'generic',
       title: `出图 · ${args?.model ?? defaultModel}`,
       kind: 'other',
-      rawInput: { prompt: args?.prompt, size: args?.size, count: args?.count },
+      rawInput: { prompt: args?.prompt, size: args?.size, count: args?.count, out: args?.out },
     }),
     execute: (args, exec) => run(args ?? {}, exec, 'gen'),
   })
@@ -556,7 +536,7 @@ export async function apply(ctx, config = {}) {
   register({
     name: 'gpt_image_edit',
     description: [
-      '改图：用 GPT Image 官逆通道按指令编辑、重绘、换风格、融合多张输入图片（≤16 张），并落到工作目录。',
+      '改图：用 GPT Image 官逆通道按指令编辑、重绘、换风格、融合多张输入图片（≤16 张），并保存到指定文件。',
       '改图、修图、换背景、换风格、多图融合、局部重绘都用它；纯文字出图用 gpt_image_generate。',
       'mask 只对第一张图生效，随 /v1/images/edits 的 mask 字段发出；改图建议用 2.6-sunburst 或 2.5-sunburst（编辑精度优先）。',
       '尺寸与参数面同出图：size 生效、quality 不保证、output_format 按模型族限制、透明底无效。返回每张图的绝对路径与像素尺寸。',
@@ -568,7 +548,7 @@ export async function apply(ctx, config = {}) {
       card: 'generic',
       title: `改图 · ${args?.model ?? defaultModel}`,
       kind: 'other',
-      rawInput: { prompt: args?.prompt, images: args?.images, count: args?.count },
+      rawInput: { prompt: args?.prompt, images: args?.images, count: args?.count, out: args?.out },
     }),
     execute: (args, exec) => run(args ?? {}, exec, 'edit'),
   })
@@ -585,30 +565,22 @@ export async function apply(ctx, config = {}) {
       type: 'object',
       additionalProperties: false,
       properties: {
-        path: { type: 'string', description: '输入图片路径（相对路径按会话工作目录解析）。' },
+        path: { type: 'string', description: '输入图片文件的绝对路径。' },
         target_long_edge: { type: 'integer', description: '目标长边像素，如 3840（4K）。' },
         factor: { type: 'number', description: '或按倍数放大（1–4），与 target_long_edge 二选一。' },
         engine: { type: 'string', enum: UPSCALE_ENGINES, description: '放大引擎，默认取配置。' },
         sharpen: { type: 'number', description: 'Lanczos 放大后的锐化强度 0–1.5，默认取配置（0.5）。' },
-        out: { type: 'string', description: '输出路径；省略则与原文件同目录、文件名加 @长边。' },
+        out: { type: 'string', description: '输出文件的绝对路径。省略时在源图旁保存，文件名加 @长边。' },
       },
       required: ['path'],
     },
     output: { schema: OUTPUT_SCHEMA, render: renderResult },
     isConcurrencySafe: () => true,
     presentCall: (args) => ({ card: 'generic', title: `放大 · ${args?.target_long_edge ?? args?.factor ?? 'auto'}`, kind: 'other' }),
-    async execute(args, exec) {
+    async execute(args) {
+      const out = args.out === undefined ? undefined : requireImagePath(args.out, 'out')
+      const target = await resolveInput(args.path, 'path')
       const settings = resolveSettings(readConfig(config), args)
-      const cwd = await cwdOf(exec)
-      const target = isAbsolute(args.path) ? args.path : resolve(cwd, args.path)
-      try {
-        await access(target)
-      } catch {
-        throw new Error(`输入图片不存在：${target}`)
-      }
-      const out = typeof args.out === 'string' && args.out.trim() !== ''
-        ? (isAbsolute(args.out) ? args.out : resolve(cwd, args.out))
-        : undefined
       const result = await upscaleImage({
         path: target,
         targetLongEdge: args.target_long_edge,
@@ -619,7 +591,7 @@ export async function apply(ctx, config = {}) {
         sharpen: args.sharpen ?? settings.upscaleSharpen,
       })
       if (result.skipped) {
-        return { summary: `未放大：${result.reason}\n路径：${result.path}`, skipped: true, ...result }
+        return { summary: `未放大：${result.reason}\n未写入输出文件。源图：${result.path}`, skipped: true, ...result }
       }
       return {
         summary: [
@@ -635,7 +607,7 @@ export async function apply(ctx, config = {}) {
   register({
     name: 'gpt_image_config',
     description: [
-      '查看或修改 GPT Image 插件配置（base_url / api_key / models / 默认模型 / 产物目录 / 超时），并列出账号实际可用的模型。',
+      '查看或修改 GPT Image 插件配置（base_url / api_key / models / 默认模型 / 超时），并列出账号实际可用的模型。',
       'action="show" 看当前生效配置（密钥打码）；action="models" 拉取 base_url 上的 /v1/models 图片模型清单；action="set" 写入配置并热重载。',
       '出图报 model_not_found 或 401 时先用它查证，再换模型或换密钥。',
     ].join('\n'),
@@ -648,7 +620,6 @@ export async function apply(ctx, config = {}) {
         apiKey: { type: 'string', description: 'set 时：API 密钥。' },
         models: { type: 'array', items: { type: 'string' }, description: 'set 时：允许的模型清单；留空表示以 /v1/models 为准。' },
         defaultModel: { type: 'string', description: 'set 时：默认模型 id。' },
-        outputDir: { type: 'string', description: 'set 时：产物目录（相对工作目录）。' },
         timeoutMs: { type: 'integer', description: 'set 时：单次请求超时毫秒。' },
       },
       required: ['action'],
@@ -671,7 +642,6 @@ export async function apply(ctx, config = {}) {
             `- 默认模型：${settings.defaultModel}`,
             `- 模型来源：${settings.models.length > 0 ? '插件配置 models' : '账号 /v1/models'}`,
             `- 模型清单：\n${describeModels(effective, settings.defaultModel)}`,
-            `- 产物目录：${current.outputDir}`,
             `- 超时：${current.timeoutMs}ms`,
             `- 自动回退：${settings.autoFallback ? '开' : '关'}`,
           ].join('\n'),
@@ -713,9 +683,8 @@ export async function apply(ctx, config = {}) {
         patch.models = args.models.map((id) => String(id).trim()).filter((id) => id !== '')
       }
       if (typeof args.defaultModel === 'string' && args.defaultModel.trim() !== '') patch.defaultModel = args.defaultModel.trim()
-      if (typeof args.outputDir === 'string' && args.outputDir.trim() !== '') patch.outputDir = args.outputDir.trim()
       if (args.timeoutMs != null) patch.timeoutMs = clamp(args.timeoutMs, 1000, 3_600_000, settings.timeoutMs)
-      if (Object.keys(patch).length === 0) throw new Error('set 需要至少一个字段：baseUrl / apiKey / models / defaultModel / outputDir / timeoutMs')
+      if (Object.keys(patch).length === 0) throw new Error('set 需要至少一个字段：baseUrl / apiKey / models / defaultModel / timeoutMs')
 
       await editor.edit(entry, (current) => ({ ...current, ...patch }))
       // 回读生效值：volatile 字段在 reload 后才会更新，不能拿 patch 当结果报给用户。
@@ -734,7 +703,6 @@ export async function apply(ctx, config = {}) {
           `- api_key：${shown.apiKey}`,
           `- 默认模型：${shown.defaultModel}`,
           `- 模型清单：${shown.models.join(', ') || '（以 /v1/models 为准）'}`,
-          `- 产物目录：${shown.outputDir}`,
           `- 超时：${shown.timeoutMs}ms`,
           staleFields.length > 0
             ? `注意：${staleFields.join(' / ')} 还没在当前实例生效，重启一次 DSH 后确认。`

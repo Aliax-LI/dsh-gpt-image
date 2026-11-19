@@ -124,7 +124,6 @@ const form = {
   defaultModel: 'gpt-image-2.6-flare',
   fixed: false,
   models: [],
-  outputDir: 'gpt-image-output',
   timeoutMs: 300000,
   autoFallback: true,
   sizeHintInPrompt: true,
@@ -133,7 +132,7 @@ const form = {
   upscaleSharpen: 0.5,
   realesrganPath: '',
   apiKeyConfigured: true,
-  hostApi: 2,
+  hostApi: 3,
 }
 const noop = () => {}
 const catalogWin = ['realesrgan', 'ffmpeg', 'pillow', 'magick']
@@ -221,8 +220,10 @@ const walkRows = (node) => {
 }
 walkRows(tree)
 const labelCount = (word) => rowLabels.filter((label) => label === word).length
-check('字段标签各出现一次', ['baseUrl', 'apiKey', 'models', 'defaultModel', 'outputDir', 'timeout', 'engine', 'target', 'sharpen'].every((key) => labelCount(key) === 1),
-  ['baseUrl', 'apiKey', 'models', 'defaultModel', 'outputDir', 'timeout', 'engine', 'target', 'sharpen'].map((key) => `${key}:${labelCount(key)}`).join(' '))
+check('设置表单不再显示或提交产物目录', labelCount('outputDir') === 0 && !source.includes('outputDir'))
+check('安装指令使用绝对图片路径', promptReal.includes('图片文件绝对路径'))
+check('字段标签各出现一次', ['baseUrl', 'apiKey', 'models', 'defaultModel', 'timeout', 'engine', 'target', 'sharpen'].every((key) => labelCount(key) === 1),
+  ['baseUrl', 'apiKey', 'models', 'defaultModel', 'timeout', 'engine', 'target', 'sharpen'].map((key) => `${key}:${labelCount(key)}`).join(' '))
 check('不再有分组标题', !rowLabels.includes('endpoint') && !rowLabels.includes('output') && !rowLabels.includes('upscale'), rowLabels.join(','))
 check('布尔项用开关而非勾选框', switches.length === 2 && !source.includes("type: 'checkbox'"), `${switches.length} 个开关`)
 check('引擎/来源/目标用下拉', (source.match(/gpi-select/g) ?? []).length >= 3, `${(source.match(/gpi-select/g) ?? []).length} 处`)

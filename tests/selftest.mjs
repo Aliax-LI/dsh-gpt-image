@@ -4,14 +4,15 @@
  * `node tests/selftest.mjs`       只跑目录/闸门/注册检查（不发请求）
  * `node tests/selftest.mjs --live` 额外打真接口：/v1/models、出图、改图、多张、参数闸门说明
  */
-import { mkdir, writeFile, rm, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdir, mkdtemp, writeFile, rm, readFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { isAbsolute, join } from 'node:path'
 
 import { apply } from '../index.js'
 
 const hostSource = await readFile(new URL('../index.js', import.meta.url), 'utf8')
 import { DEFAULT_MODEL, KNOWN_MODELS, modelSpec, normalizeModels } from '../lib/models.js'
-import { baseDir, callGeneration, fetchImageModels, resolveSettings, withSizeHint } from '../lib/api.js'
+import { callGeneration, fetchImageModels, resolveSettings, withSizeHint } from '../lib/api.js'
 
 const LIVE = process.argv.includes('--live')
 const results = []
@@ -59,12 +60,6 @@ check('陌生 id 透传', modelSpec('dall-e-3').known === false && modelSpec('da
 check('新 gpt-image 型号按 2.5/2 闸门', !modelSpec('gpt-image-3').outputFormats.includes('svg') && modelSpec('gpt-image-3').size === true)
 check('尺寸写进提示词的兜底可用', withSizeHint('一只橘猫', '1536x1024').includes('画面比例 3:2'))
 
-// --- 1b. 产物目录解析 ------------------------------------------------------
-check('相对目录按会话展开', baseDir('/s/proj', 'gpt-image-output') === '/s/proj/gpt-image-output', baseDir('/s/proj', 'gpt-image-output'))
-check('绝对目录原样使用', baseDir('/s/proj', '/Users/x/temu') === '/Users/x/temu', baseDir('/s/proj', '/Users/x/temu'))
-check('~ 展开到家目录', baseDir('/s/proj', '~/Pictures/out').endsWith('/Pictures/out') && !baseDir('/s/proj', '~/Pictures/out').includes('/s/proj'), baseDir('/s/proj', '~/Pictures/out'))
-check('空目录退回会话目录', baseDir('/s/proj', '') === '/s/proj')
-
 // --- 2. 注册（不发请求） --------------------------------------------------
 const { ctx, tools } = fakeContext()
 await apply(ctx, { ...CONFIG, baseUrl: 'http://127.0.0.1:9', timeoutMs: 1500, apiKey: '' })
@@ -87,7 +82,8 @@ async function probe(args) {
 
 const savedKeyEnv = process.env.GPT_IMAGE_API_KEY
 delete process.env.GPT_IMAGE_API_KEY
-const noKey = await probe({ prompt: 'x', apiKey: '' })
+const probeOut = join(tmpdir(), 'probe.png')
+const noKey = await probe({ prompt: 'x', apiKey: '', out: probeOut })
 if (savedKeyEnv !== undefined) process.env.GPT_IMAGE_API_KEY = savedKeyEnv
 check('缺 key 报可操作错误', /缺少 api_key/.test(noKey.error ?? ''), noKey.error ?? '')
 
@@ -98,7 +94,7 @@ const noBase = await (async () => {
   const bare = fakeContext()
   await apply(bare.ctx, { apiKey: 'sk-probe', baseUrl: '' })
   const out = await bare.tools.get('gpt_image_generate')
-    .execute({ prompt: 'x' }, { signal: new AbortController().signal })
+    .execute({ prompt: 'x', out: probeOut }, { signal: new AbortController().signal })
     .catch((error) => ({ error: String(error?.message ?? error) }))
   if (savedBase !== undefined) process.env.GPT_IMAGE_BASE_URL = savedBase
   if (savedKey !== undefined) process.env.GPT_IMAGE_API_KEY = savedKey
@@ -109,8 +105,69 @@ check('传输失败会换路重试', hostSource.includes('isTransportFailure') &
 check('摘要里给出落盘目录', hostSource.includes('`目录：${dir}`'))
 check('缺 base_url 报可操作错误', /缺少 base_url/.test(noBase.error ?? ''), noBase.error ?? '')
 
-const badSize = await generate.execute({ prompt: 'x', size: 'huge', apiKey: CONFIG.apiKey || 'probe-only' }, { signal: new AbortController().signal }).catch((error) => ({ error: String(error?.message ?? error) }))
+const badSize = await generate.execute({ prompt: 'x', size: 'huge', out: probeOut, apiKey: CONFIG.apiKey || 'probe-only' }, { signal: new AbortController().signal }).catch((error) => ({ error: String(error?.message ?? error) }))
 check('非法尺寸被拒', /尺寸格式/.test(badSize.error ?? ''), badSize.error ?? '')
+
+// 模拟网关，覆盖非法路径拦截和工具间直接复用绝对路径。
+{
+  const root = await mkdtemp(join(tmpdir(), 'gpt-image-paths-'))
+  const originalFetch = globalThis.fetch
+  const calls = []
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2KX2QAAAAASUVORK5CYII='
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url, body: init?.body })
+    return Response.json(url.endsWith('/models')
+      ? { data: [{ id: DEFAULT_MODEL }] }
+      : { data: [{ b64_json: png }] })
+  }
+  try {
+    const test = fakeContext()
+    test.ctx.get = (service) => {
+      if (service === 'workingDirectory') throw new Error('不应查询工作目录')
+    }
+    await apply(test.ctx, { baseUrl: 'https://gateway.example.invalid', apiKey: 'test-key', outputDir: 'legacy-dir' })
+    const exec = { agent: {}, signal: new AbortController().signal }
+    const gen = test.tools.get('gpt_image_generate')
+    const edit = test.tools.get('gpt_image_edit')
+    const scale = test.tools.get('gpt_image_upscale')
+    const input = join(root, 'SKU 参考图.png')
+    const out = join(root, '轮播 套图', '01.jpg')
+    await writeFile(input, Buffer.from(png, 'base64'))
+    calls.length = 0
+    const rejected = async (tool, args, expected) => {
+      const before = calls.length
+      const message = await tool.execute({ prompt: '路径测试', ...args }, exec).then(() => '', (error) => error.message)
+      check(`${tool.name} 拒绝无效路径`, expected.test(message) && calls.length === before, message)
+    }
+    check('生成和改图 schema 要求 out', [gen, edit].every((tool) => tool.parameters.required.includes('out')))
+    await rejected(gen, {}, /out.*绝对路径/)
+    await rejected(gen, { out: 'relative.png' }, /out.*绝对路径/)
+    await rejected(edit, { out, images: [input, 'relative.png'] }, /images\[1\].*绝对路径/)
+    await rejected(edit, { out, images: [input], mask: 'relative.png' }, /mask.*绝对路径/)
+    await rejected(edit, { out, images: [root] }, /images\[0\].*文件/)
+    await rejected(edit, { out, images: [join(root, 'missing.png')] }, /images\[0\].*ENOENT/)
+    await rejected(scale, { path: 'relative.png' }, /path.*绝对路径/)
+    await rejected(scale, { path: input, out: 'relative.png' }, /out.*绝对路径/)
+    if (process.platform === 'win32') {
+      for (const path of ['D:relative.png', '\\relative.png', '/relative.png']) {
+        await rejected(gen, { out: path }, /out.*绝对路径/)
+      }
+    }
+    const generated = await gen.execute({ prompt: 'x', out, count: 2 }, exec)
+    const expected = ['01-1.png', '01-2.png'].map((name) => join(root, '轮播 套图', name))
+    const outputPaths = generated.files.map((file) => file.path)
+    check('生成写入指定目录，返回实际扩展名及绝对路径', JSON.stringify(outputPaths) === JSON.stringify(expected) && outputPaths.every(isAbsolute))
+    const edited = await edit.execute({ prompt: 'x', out, images: [outputPaths[0]], mask: input }, exec)
+    const multipart = calls.find(({ url }) => url.endsWith('/images/edits'))?.body
+    check('生成结果可直接作为改图输入', multipart?.get('image[]')?.name === '01-1.png' && multipart?.get('mask')?.name === 'SKU 参考图.png')
+    check('改图返回已写入的文件绝对路径', edited.files[0]?.path === join(root, '轮播 套图', '01.png') && (await readFile(edited.files[0].path)).toString('base64') === png)
+    const planned = await scale.execute({ path: edited.files[0].path, factor: 2, engine: 'off' }, exec)
+    check('默认放大目标在源图旁边', planned.skipped && planned.out === join(root, '轮播 套图', '01@2.png') && planned.summary.includes('未写入输出文件'))
+  } finally {
+    globalThis.fetch = originalFetch
+    await rm(root, { recursive: true, force: true })
+  }
+}
 
 // 超时必须给出可操作提示：本地起一个只接受不响应的服务
 {
@@ -178,7 +235,7 @@ check('config show 打码密钥', !shown.summary.includes(CONFIG.apiKey), shown.
 const gen = await generateLive.execute({
   prompt: '一只戴墨镜的橘猫坐在海边吧台，电影画幅，胶片颗粒',
   size: '1536x1024',
-  out: 'gen.png',
+  out: join(outDir, 'gen.png'),
   timeoutMs: 240_000,
 }, exec)
 check('真机出图落盘', gen.files.length === 1 && gen.files[0].bytes > 10_000, gen.files[0]?.path)
@@ -192,14 +249,14 @@ const edited = await editTool.execute({
   images: [gen.files[0].path],
   model: 'gpt-image-2.6-sunburst',
   timeoutMs: 240_000,
-  out: 'edit.png',
+  out: join(outDir, 'edit.png'),
 }, exec)
 check('真机改图落盘', edited.files.length === 1 && edited.files[0].bytes > 10_000, edited.files[0]?.path)
 
 const pair = await generateLive.execute({
   prompt: '同一只橘猫的极简线稿',
   count: 2,
-  out: 'pair.png',
+  out: join(outDir, 'pair.png'),
   timeoutMs: 240_000,
 }, exec)
 check('多张并发带后缀', pair.files.length === 2 && pair.files[1].path.includes('pair-2'), pair.files.map((f) => f.path).join(' | '))
@@ -209,7 +266,7 @@ const webp = await generateLive.execute({
   output_format: 'webp',
   background: 'transparent',
   quality: 'high',
-  out: 'gear.webp',
+  out: join(outDir, 'gear.webp'),
   timeoutMs: 240_000,
 }, exec)
 check('output_format=webp 真返回 webp', webp.files[0]?.mediaType === 'image/webp' && webp.files[0]?.path.endsWith('.webp'), `${webp.files[0]?.mediaType} ${webp.files[0]?.path}`)
@@ -221,7 +278,7 @@ const svg = await generateLive.execute({
   model: 'gpt-image-2.6-sunburst',
   output_format: 'svg',
   response_format: 'url',
-  out: 'gear.svg',
+  out: join(outDir, 'gear.svg'),
   timeoutMs: 300_000,
 }, exec).catch((error) => ({ files: [], notes: [], error: String(error?.message ?? error) }))
 check('output_format=svg 真返回 svg', svg.files[0]?.mediaType === 'image/svg+xml' && svg.files[0]?.path.endsWith('.svg'), svg.error ?? `${svg.files[0]?.mediaType} ${svg.files[0]?.bytes}B`)

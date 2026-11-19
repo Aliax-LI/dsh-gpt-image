@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "GPT Image reverse channel",
-    "description": "Adds gpt_image_generate, gpt_image_edit, gpt_image_upscale and gpt_image_config: text-to-image, editing, multi-image fusion and inpainting through GPT-Image reverse-channel models on any OpenAI-compatible endpoint. Results are saved under gpt-image-output/ in the session directory. The model list comes from the account's GET /v1/models instead of a built-in whitelist. Reverse channels stop short of 4K, so results can be upscaled after saving to a target long edge (Real-ESRGAN when installed, otherwise ffmpeg Lanczos3 or Pillow, plus light sharpening). Endpoint, key, models and upscale settings live on the Settings > GPT-Image page and apply immediately."
+    "description": "Adds gpt_image_generate, gpt_image_edit, gpt_image_upscale and gpt_image_config: text-to-image, editing, multi-image fusion and inpainting through GPT-Image reverse-channel models on any OpenAI-compatible endpoint. Image inputs and explicit output destinations use absolute file paths. The model list comes from the account's GET /v1/models instead of a built-in whitelist. Reverse channels stop short of 4K, so results can be upscaled after saving to a target long edge (Real-ESRGAN when installed, otherwise ffmpeg Lanczos3 or Pillow, plus light sharpening). Endpoint, key, models and upscale settings live on the Settings > GPT-Image page and apply immediately."
   }
 }

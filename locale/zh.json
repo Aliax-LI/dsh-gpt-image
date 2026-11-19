@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "GPT Image 官逆出图",
-    "description": "新增 gpt_image_generate、gpt_image_edit、gpt_image_upscale 与 gpt_image_config：通过 GPT-Image 官逆通道在任意 OpenAI 兼容接口上做文生图、改图、多图融合与局部重绘，产物落在会话目录的 gpt-image-output/。模型清单以账号 GET /v1/models 为准，插件不自带白名单；官逆出不到 4K，落盘后按目标长边走本机放大链路（Real-ESRGAN 优先，缺则 ffmpeg 真 Lanczos3 或 Pillow，并做轻度锐化）。接口、密钥、模型清单、放大参数都能在「设置 → GPT-Image」页里改，保存即时生效。"
+    "description": "新增 gpt_image_generate、gpt_image_edit、gpt_image_upscale 与 gpt_image_config：通过 GPT-Image 官逆通道在任意 OpenAI 兼容接口上做文生图、改图、多图融合与局部重绘，图片输入和指定的输出位置均使用文件绝对路径。模型清单以账号 GET /v1/models 为准，插件不自带白名单；官逆出不到 4K，落盘后按目标长边走本机放大链路（Real-ESRGAN 优先，缺则 ffmpeg 真 Lanczos3 或 Pillow，并做轻度锐化）。接口、密钥、模型清单、放大参数都能在「设置 → GPT-Image」页里改，保存即时生效。"
   }
 }

@@ -32,7 +32,6 @@ window.__ModuleLoader__.load({
       models: '模型清单',
       refresh: '刷新',
       noneSelected: '至少选一个模型',
-      outputDir: '产物目录',
       timeout: '超时（ms）',
       autoFallback: '模型不可用时自动换一个',
       sizeHint: '画幅写进提示词',
@@ -73,7 +72,6 @@ window.__ModuleLoader__.load({
       models: 'Model list',
       refresh: 'Refresh',
       noneSelected: 'Pick at least one model',
-      outputDir: 'Output directory',
       timeout: 'Timeout (ms)',
       autoFallback: 'Swap in another model when unavailable',
       sizeHint: 'Write the frame into the prompt',
@@ -260,7 +258,8 @@ window.__ModuleLoader__.load({
           : 'gpt_image_config({ action: "show" })   # 确认该引擎已出现在可用列表',
         '',
         '## 验证',
-        'gpt_image_upscale({ path: "gpt-image-output/gear.png", factor: 2 })',
+        '找一张实际存在的本地 PNG 或 JPEG，确认其绝对路径再调用。',
+        'gpt_image_upscale({ path: "<已确认的图片文件绝对路径>", factor: 2 })',
         '',
         '装好把结果告诉我：哪些引擎现在可用、验证那张图的宽高。',
       )
@@ -436,7 +435,7 @@ window.__ModuleLoader__.load({
       if (form == null) return h('div', { className: 'gpi' }, h('style', null, CSS))
 
       const dirty = JSON.stringify(form) !== initial
-      const stale = form.hostApi !== 2
+      const stale = form.hostApi !== 3
       const catalog = Array.isArray(props.catalog) && props.catalog.length > 0 ? props.catalog : FALLBACK_CATALOG
       const unavailable = new Set(catalog.filter((name) => !engineList.includes(name)))
       const known = unique([...(accountModels ?? []), ...form.models, form.defaultModel ?? ''])
@@ -519,14 +518,6 @@ window.__ModuleLoader__.load({
               label: t('defaultModel'),
               options: known.map((id) => ({ id, label: id })),
               onChange: (id) => props.onSet({ defaultModel: id }),
-            })),
-
-          h(Row, { label: t('outputDir') },
-            h('input', {
-              className: 'gpi-field gpi-field--mono',
-              value: form.outputDir,
-              placeholder: 'gpt-image-output',
-              onChange: (event) => props.onSet({ outputDir: event.target.value }),
             })),
 
           h(Row, { label: t('timeout') },
@@ -642,7 +633,6 @@ window.__ModuleLoader__.load({
             defaultModel: raw.defaultModel ?? '',
             fixed: (raw.models ?? []).length > 0,
             models: raw.models ?? [],
-            outputDir: raw.outputDir ?? '',
             timeoutMs: raw.timeoutMs ?? 300000,
             autoFallback: raw.autoFallback !== false,
             sizeHintInPrompt: raw.sizeHintInPrompt !== false,
@@ -725,7 +715,6 @@ window.__ModuleLoader__.load({
             apiKey: form.apiKey,
             defaultModel: form.defaultModel,
             modelsText: form.fixed ? form.models.join(', ') : '',
-            outputDir: form.outputDir,
             timeoutMs: Number(form.timeoutMs),
             autoFallback: form.autoFallback,
             sizeHintInPrompt: form.sizeHintInPrompt,
