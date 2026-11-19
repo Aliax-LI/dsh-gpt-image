@@ -136,13 +136,13 @@ const form = {
 }
 const noop = () => {}
 const catalogWin = ['realesrgan', 'ffmpeg', 'pillow', 'magick']
-// --- 6. 图标：GPT 旋叶标记 ------------------------------------------------
+// --- 6. 图标：图像框与生成闪光 ---------------------------------------------
 const iconSvg = await readFile(new URL('../icon.svg', import.meta.url), 'utf8')
-check('图标是合法 SVG 且体积合规', iconSvg.trimStart().startsWith('<svg') && Buffer.byteLength(iconSvg) < 256 * 1024, `${Buffer.byteLength(iconSvg)} bytes`)
+check('图标是合法 SVG 且体积合规', iconSvg.includes('viewBox="0 0 36 36"') && Buffer.byteLength(iconSvg) < 256 * 1024, `${Buffer.byteLength(iconSvg)} bytes`)
+check('图标不绘制宿主底板', !/<rect[^>]+fill="(?!none)[^"]+"/.test(iconSvg))
 check('图标无文字元素', !/<text|<tspan|<foreignObject/.test(iconSvg))
-check('图标是 sub2api 提供的 logo', iconSvg.includes('s2a-brand') && iconSvg.includes('viewBox="0 0 512 512"'), iconSvg.slice(0, 60).replace(/\n/g, ' '))
+check('图标有透明描边与实心闪光', /<rect\b[^>]*fill="none"[^>]*stroke="#[\da-f]{6}"/i.test(iconSvg) && /<path\b[^>]*fill="#[\da-f]{6}"/i.test(iconSvg))
 check('图标无外部引用/脚本', !/href="http|<script|<image/.test(iconSvg))
-check('图标保留互锁 S 主体', (iconSvg.match(/<path/g) ?? []).length >= 2)
 const glyphRender = exported.PanelView({
   t: (key) => key,
   form: { ...form },
@@ -169,8 +169,10 @@ check('设置页标题用插件图标', logoNodes.length === 1)
 
 const logoTree = exported.Logo()
 check('标题图标尺寸 20', logoTree?.props?.size === 20, JSON.stringify(logoTree?.props ?? {}))
-check('标识是单色行内 SVG', source.includes("stroke: 'currentColor'") && (source.match(/MARK_PATHS = \[/) != null))
-check('标识不带品牌绿', !/10A37F|19B98C|3EDCB0|s2a-brand|#12A57F/i.test(source))
+const inlineGlyph = logoTree?.type?.(logoTree.props)
+const [frame, sparkle] = inlineGlyph?.children ?? []
+check('标识是单色行内 SVG', inlineGlyph?.type === 'svg' && frame?.props?.stroke === 'currentColor' && sparkle?.props?.fill === 'currentColor')
+check('设置标记与插件图标共用闪光路径', typeof sparkle?.props?.d === 'string' && iconSvg.includes(`d="${sparkle.props.d}"`))
 
 const navTree = exported.NavIcon({ size: 16, active: false })
 check('导航图标复用同一枚标记', navTree?.type?.name === 'Glyph', String(navTree?.type?.name))

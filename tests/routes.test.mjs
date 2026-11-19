@@ -4,7 +4,7 @@
  * `node tests/routes.test.mjs`        只测 GET/POST（不联网）
  * `node tests/routes.test.mjs --live` 额外跑一次真出图 + 4K 放大
  */
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { apply } from '../index.js'
@@ -146,7 +146,7 @@ await routes.get('/gpt-image/icon.svg')(
   },
 )
 check('图标端点返回 SVG', iconType.startsWith('200 image/svg+xml'), iconType)
-check('图标内容就是插件图标', iconBody.includes('sub2api') || iconBody.includes('s2a-bg'), `${iconBody.length} 字符`)
+check('图标内容就是插件图标', iconBody === await readFile(new URL('../icon.svg', import.meta.url), 'utf8'), `${iconBody.length} 字符`)
 
 dispose()
 check('清理后路由注销', routes.size === 0)

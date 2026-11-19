@@ -481,7 +481,7 @@ export async function apply(ctx, config = {}) {
       response_format: {
         type: 'string',
         enum: RESPONSE_FORMATS,
-        description: '响应形态：b64_json（默认）或 url（网关返回 CDN 直链，插件下载后落盘）。',
+        description: '响应形态：url（默认，插件下载网关返回的直链后落盘）或 b64_json。',
       },
       count: {
         type: 'integer',
@@ -494,7 +494,7 @@ export async function apply(ctx, config = {}) {
       timeoutMs: { type: 'integer', description: `单次请求超时，默认 ${base.timeoutMs}。` },
       target_long_edge: {
         type: 'integer',
-        description: '生成后把长边放大到这个像素（如 3840=4K）；0 或省略＝按配置，配置也是 0 就不放大。官逆出不到 4K，靠这一步补齐。',
+        description: '生成或改图后放大的目标长边像素（如 3840）。传 0 关闭本次自动放大，省略时使用配置值。',
       },
       upscale: {
         type: 'string',

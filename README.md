@@ -23,18 +23,17 @@
 | 参数 | 说明 |
 | --- | --- |
 | `prompt`（必填） | 主体、构图、光线、材质、风格 |
-| `model` | 默认取配置里的 `defaultModel`（缺省 `gpt-image-2.6-flare`） |
-| `size` | `1024x1024`、`1536x1024`、`1024x1536`、`3840x2160`、`auto` |
-| `output_format` | `png` / `jpeg` / `webp` / `gif` / `svg`；gif 与 svg 仅 2.6 系 |
+| `model` | 默认使用配置中的 `defaultModel`。该模型不在清单中时，优先使用清单中的第一项 |
+| `size` | 网关出图尺寸，例如 `1024x1024`、`1536x1024`、`1024x1536` 或 `auto` |
+| `output_format` | `png` / `jpeg` / `webp` / `gif` / `svg`。已适配的型号中，`gif` 与 `svg` 仅 2.6 系支持 |
 | `quality` | `low` `medium` `high` `xhigh` `max` `auto` |
-| `background` | `auto` `opaque` `transparent` |
-| `response_format` | `b64_json`（默认）或 `url` |
+| `background` | 支持 `auto`、`opaque`。官逆通道不支持 `transparent`，插件会在 `notes` 说明 |
+| `response_format` | `url`（默认，插件下载直链后保存）或 `b64_json`（将图片数据随响应返回） |
 | `count` | 1–5，默认 1（客户端并发，服务端不发 `n`） |
-| `out`（必填） | 输出文件的绝对路径，包含文件名。自动创建父目录，多张自动加 `-1`、`-2` |
-| `target_long_edge` | 生成后自动放大到该长边，`3840` = 4K |
+| `out`（必填） | 带文件名的绝对路径，命名规则见[输出](#输出) |
+| `target_long_edge` | 落盘后放大的目标长边。`3840` 表示长边 3840 像素，`0` 关闭本次自动放大，省略时使用配置值 |
 | `upscale` / `sharpen` | 本次使用的放大引擎与锐化强度 |
-| `timeoutMs` | 单次请求超时，默认 600000 |
-| `bodyStallMs` | 响应体停滞多久判失败，默认 30000 |
+| `timeoutMs` | 单次网关请求超时，单位为毫秒，省略时使用插件配置。安装包预设为 `300000` |
 
 ### `gpt_image_edit`
 
@@ -73,9 +72,7 @@
 - **输出格式参数名是 `output_format`**。`format` 会被网关静默忽略（连非法值都返回 png），所以插件只发 `output_format`；`png`/`jpeg`/`webp` 通用，`gif` 与 `svg` 只在 2.6 系可用，2.5 与 2 传这两个值会被网关拒，插件改按 png 出图并说明原因。
 - **`gif` / `svg` 不跟 `size`**：画幅以返回为准。
 - **透明底不可用**：传 `background: transparent` 会拿回不带 alpha 的 png，插件丢弃该字段并在 `notes` 里写明。
-- **`response_format: url` 可用**：网关回 CDN 直链，插件下载后照常落盘；直链取不下来时自动改用 `b64_json` 重取一次。
-- **一次请求可能返回多张**：插件全部落盘并按 `-1` `-2` 编号。
-- 目录外的模型按透传处理：给什么发什么，报错以网关为准。
+- **一次请求可能返回多张**。生成和改图工具会保存所有结果。
 
 默认模型在当前账号不可用时（`model_not_found`）且调用方没有显式指定 `model`，插件会自动换一个账号里真能用的图片模型重试一次，并在 `notes` 里写明换了谁。设 `autoFallback: false` 或 `GPT_IMAGE_NO_FALLBACK=1` 关闭。
 
@@ -121,7 +118,8 @@ Lanczos 只重采样、放大后偏软，所以默认叠一道轻度锐化（`up
         apiKey: ''            # 也可以留空，改用 GPT_IMAGE_API_KEY
         defaultModel: gpt-image-2.6-flare
         models: []            # 留空 = 以账号 /v1/models 为准
-        timeoutMs: 600000
+        timeoutMs: 300000
+        bodyStallMs: 30000
         autoFallback: true
         upscaleEngine: auto
         upscaleTargetLongEdge: 0    # 0 = 不自动放大；3840 = 4K
@@ -133,40 +131,27 @@ Lanczos 只重采样、放大后偏软，所以默认叠一道轻度锐化（`up
 
 ## 输出
 
-生成和改图时，用 `out` 指定完整文件路径，例如 Windows 的 `D:/项目/轮播图/01.png`，或 macOS/Linux 的 `/home/user/项目/轮播图/01.png`。图片参数需要包含文件名，Windows 路径需要盘符或 UNC 共享名。模型返回的实际格式决定扩展名，写入时会覆盖同名文件。后续改图或放大可直接使用上一步返回的绝对路径。
+- **生成和改图**都要传 `out`。例如 Windows 用 `D:/项目/轮播图/01.png`，macOS/Linux 用 `/home/user/项目/轮播图/01.png`。Windows 也支持 UNC 共享路径。改图的 `images`、`mask` 和放大的 `path` 都指向已存在的图片文件。
+- 插件会创建输出文件的父目录，按网关实际返回的图片格式确定扩展名。一次返回多张时，文件名加 `-1`、`-2` 等编号。最终路径上的同名文件会被覆盖。
+- 生成和改图成功时，摘要会列出保存目录、每张图的绝对路径、像素宽高和文件大小。网关返回的改写提示词和本次参数调整会在有内容时显示。如果开启自动放大，原图会保留，放大成功的条目返回放大后的路径。后续改图或放大可直接使用返回的绝对路径。
 
-从旧版升级后，设置页移除了产物目录，旧 `outputDir` 和 `GPT_IMAGE_OUTPUT_DIR` 值会被忽略。
+### 网关响应与重试
 
-每次返回开头就写明**落盘目录**，随后是每张图的绝对路径、像素宽高、字节数、`revised_prompt`，以及被通道忽略的参数原因。
+生成和改图默认发送 `response_format: url`，收到直链后下载并保存。直链下载失败时，插件会省略 `response_format` 再请求一次，交由网关使用默认响应格式。遇到连接中断等传输错误时，插件也可能换用另一种响应方式重试。
 
-改图默认让网关回**直链**（`response_format=url`）：改图的响应体是大块 base64，网关容易在传输中途断开，只回一个 URL 就绕开了这个问题；直链取不到时自动改用 `b64_json`。另外加了**响应体停滞检测**——头部到了但 body 长时间没有新数据就立即失败并换路重试，不会干等到总超时。
+`bodyStallMs` 是插件配置项，默认 `30000` 毫秒，限制收到响应头后连续没有新数据的时间。`timeoutMs` 限制每次网关请求的总时长。
 
 ## 安装
 
-想要在 DSH 里检查并安装后续版本，请按下方「更新」一节从 **Plugins → Discover** 安装。直接填 Git 地址仍可用于临时安装或测试，但 DSH 不会把普通 Git 安装自动关联到市场索引；它不会获得 Discover 的版本更新入口。
-
-本地开发可克隆仓库后，在 **Plugins → Add plugin** 指向本地目录：
-
-```bash
-git clone https://github.com/Aliax-LI/dsh-gpt-image.git
-cd dsh-gpt-image && pnpm install
-```
-
-本地目录链接用于开发，不支持通过市场更新。
+1. 在 **插件 → 实验性插件** 启用 **自定义插件索引（Custom plugin indexes）**。
+2. 在 **插件 → 发现（Discover）** 添加索引源 `https://raw.githubusercontent.com/Aliax-LI/dsh-gpt-image/main/plugin-index.json`。
+3. 搜索 **GPT Image 官逆出图** 并安装。安装后在 **设置 → GPT Image** 填写网关地址和 API Key。
 
 ## 更新
 
-插件更新由 DSH 的 **Plugins → Discover** 管理。先在 **Plugins → Experimental plugins** 启用 **Custom plugin indexes**，在 **Discover → Add index source** 添加本仓库索引：
+从索引安装的插件会固定到某个 Git commit。有新版本时，在 **插件 → 发现（Discover）** 打开插件条目并选择 **更新**。本地目录链接和未固定到 commit 的 Git 安装不支持此入口。
 
-```
-https://raw.githubusercontent.com/Aliax-LI/dsh-gpt-image/main/plugin-index.json
-```
-
-从这个索引安装后，DSH 会按固定 Git commit 安装版本，并在 **Plugins → Installed** 中提供版本检查和 **Update**。更新时 DSH 会校验目标包名、版本和兼容性；安装失败会尝试恢复旧版本。
-
-**注意：已通过本地目录或 Git 地址直接安装的旧版本不能原位转换为可更新安装。** 当前 profile 若显示 `link:` 来源（例如本地开发目录），请先备份该插件的接口地址与 API Key，在 **Plugins → Installed** 移除旧包，再从 **Discover** 安装；然后在 **设置 → GPT Image** 重新填写配置。不要在仍依赖旧本地目录时移除它。
-
-发布者将 `package.json` 版本号更新并推送对应 `vX.Y.Z` tag 后，GitHub Actions 会验证 tag 对应的包名和版本，并把完整 commit SHA 加入市场索引。只推送普通分支提交不会发布更新；版本 tag 应指向完整、可用的 release 提交。
+发布时，先更新包清单中的版本号，再为对应提交创建并推送 `vX.Y.Z` tag。GitHub Actions 会验证包名和版本，并将完整 commit SHA 加入市场索引。
 
 ## 本地开发
 

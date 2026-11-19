@@ -266,31 +266,24 @@ window.__ModuleLoader__.load({
       return lines.join('\n')
     }
 
-    /** 与插件图标同款的互锁 S 标记，单色（currentColor），与设置页其它导航图标一致。 */
-    const MARK_PATHS = [
-      'm19.25 7.65-2.55-3.2a1.33 1.33 0 0 0-1.03-.5H8.58c-.34 0-.67.13-.91.37L4.15 7.65c-.93.88-.6 1.52.65 2.3l9.55 5.97',
-      'm4.75 16.35 2.55 3.2c.25.31.63.5 1.03.5h7.09c.34 0 .67-.13.91-.37l3.52-3.33c.93-.88.6-1.52-.65-2.3L9.65 8.08',
-    ]
+    /** 与插件图标共用轮廓，设置页继承当前文字颜色。 */
+    const SPARKLE_PATH = 'M18 12.5c-.55 3.75-1.75 4.95-5.5 5.5 3.75.55 4.95 1.75 5.5 5.5.55-3.75 1.75-4.95 5.5-5.5-3.75-.55-4.95-1.75-5.5-5.5Z'
 
-    /** 单色标记；`size` 决定边长，颜色继承 currentColor。 */
     function Glyph(props) {
       const size = props?.size ?? 20
       return h('svg', {
         className: 'gpi-logo',
-        viewBox: '0 0 24 24',
+        viewBox: '5 5 26 26',
         width: size,
         height: size,
         'aria-hidden': 'true',
         focusable: 'false',
-        fill: 'none',
-        stroke: 'currentColor',
-        strokeWidth: 1.9,
-        strokeLinecap: 'round',
-        strokeLinejoin: 'round',
-      }, MARK_PATHS.map((d) => h('path', { key: d.slice(0, 12), d })))
+      },
+      h('rect', { x: 8.5, y: 8.5, width: 19, height: 19, rx: 3.4, fill: 'none', stroke: 'currentColor', strokeWidth: 2.4 }),
+      h('path', { d: SPARKLE_PATH, fill: 'currentColor' }))
     }
 
-    /** 设置导航里的小图标：同一枚举标记。 */
+    /** 设置导航和面板标题复用同一个标记。 */
     function NavIcon(props) {
       return h(Glyph, { size: props?.size ?? 16 })
     }
