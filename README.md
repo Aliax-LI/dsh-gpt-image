@@ -2,6 +2,80 @@
 
 把 GPT Image **官逆**通道接进 DSH，一条链路做完「出图 → 改图 → 补到 4K」。
 
+## 安装
+
+### 中国大陆安装
+
+后续版本通过 **npm 包 + npmmirror** 分发，下载插件本体和依赖都不需要 Git 或 GitHub 仓库连接。大陆索引与通用索引内容同步，只有 npm 下载源不同。
+
+> 发布状态：当前已发布的 `0.1.0`–`0.1.2` 是 Git 版本。以下大陆索引、npm 包与 Release 安装包需要本次分发改动上线、并完成首个 npm 版本发布后生效。历史版本保留原 Git 来源，不会自动变成 npm 版本。
+
+1. 在 **插件 → 实验性插件** 启用 **自定义插件索引（Custom plugin indexes）**。
+2. 在 **插件 → 发现（Discover）** 添加大陆索引（主入口不通时换备用入口）：
+
+   ```text
+   https://cdn.jsdelivr.net/gh/Aliax-LI/dsh-gpt-image@main/plugin-index.cn.json
+   ```
+
+   备用：
+
+   ```text
+   https://fastly.jsdelivr.net/gh/Aliax-LI/dsh-gpt-image@main/plugin-index.cn.json
+   https://raw.githubusercontent.com/Aliax-LI/dsh-gpt-image/main/plugin-index.cn.json
+   ```
+
+3. 搜索 **GPT Image 官逆出图** 并安装。大陆索引的 npm 版本会传入 `https://registry.npmmirror.com/` 作为本次安装源。
+4. 安装后在 **设置 → GPT Image** 填写网关地址和 API Key。
+
+**不使用索引也可安装：**首个 npm 版本发布后，在 **插件 → 添加插件** 输入 `@aliax-li/dsh-gpt-image`，安装源选择 **中国大陆镜像源**。如需锁定版本，输入 `@aliax-li/dsh-gpt-image@X.Y.Z`，将 `X.Y.Z` 替换为已发布版本。索引 CDN 更新可能滞后；使用包名安装可跳过索引缓存。
+
+npmmirror 同步新版本可能有延迟。如果报插件包或版本不存在，在安装对话框临时选择 **npm 官方源** `https://registry.npmjs.org/` 重试，或稍后再试。当前 DSH 的默认配置会在部分源故障时尝试备选源；用户自定义了源集合时，具体回退顺序以 DSH 配置为准。
+
+### 通用安装与旧版本迁移
+
+通用索引为 `https://raw.githubusercontent.com/Aliax-LI/dsh-gpt-image/main/plugin-index.json`，其新 npm 版本使用官方 npm 源。
+
+已从 Git 安装的 `0.1.x` 切换至 npm 分发时，先记下 **设置 → GPT Image** 的网关、密钥和放大配置，再卸载 Git 版本，按上面的包名方式安装并核对配置。当前 DSH 不会通过 Git 更新入口把已有安装跨来源迁移到 npm。
+
+GitHub 连接受限时，切换 npm 源只会影响 npm 包与依赖，不会改变历史 Git 版本的下载地址。新发布流程还会在 GitHub Release 附带 `.tgz` 插件包和 `SHA256SUMS`：可在能访问的机器下载、校验后传到目标机器，解压 `.tgz`，在解压后的 `package` 目录执行 `pnpm install --prod --ignore-scripts --registry=https://registry.npmmirror.com/`，然后用 **添加插件** 选择该目录。本地包仍需安装依赖；此方式只免去目标机器的 GitHub/Git 下载。
+
+**插件索引与 npm 安装源是两个独立配置：**
+
+| 用途 | 地址 | 填写位置 |
+| --- | --- | --- |
+| 发现插件和版本 | 上面的大陆索引或通用索引 JSON 地址 | **发现 → 索引源** |
+| 下载插件 npm 包和依赖 | `https://registry.npmmirror.com/` 或 `https://registry.npmjs.org/` | 安装对话框的 **安装源（registry）** |
+
+### 安装时出现 `ERR_PNPM_FETCH_404`
+
+如果报错地址包含 `plugin-index.json/@deepseek-ai%2Fschemastery`，说明本次安装把插件索引地址当成了 npm registry。`@deepseek-ai/schemastery@3.19.0` 已发布在 npm；这条 404 本身不表示依赖缺失或需要登录。
+
+1. 保留 **发现** 页中的插件索引地址。
+2. 在安装对话框选择 **安装源 → npm 官方源**（`https://registry.npmjs.org/`）后重新安装；也可选择中国大陆镜像源。安装界面会记住所选源，重启应用后仍可能沿用之前的错误地址。
+3. 若从 **发现** 发起的安装没有安装源选择器，返回 **插件 → 添加插件**，填入以下固定版本的 Git 地址，并选择正确的 npm 安装源：
+
+   ```text
+   git+https://github.com/Aliax-LI/dsh-gpt-image.git#db487dec9de4f224ac9293ca173929e19507c40b
+   ```
+
+4. 若选择的是 **pnpm 默认源**，在发生错误的机器上检查 pnpm 配置：
+
+   ```bash
+   pnpm config get registry
+   pnpm config get @deepseek-ai:registry
+   pnpm view @deepseek-ai/schemastery@3.19.0 version --registry=https://registry.npmjs.org/
+   ```
+
+   依赖查询正常时输出 `3.19.0`。若前两项有一项输出插件索引地址，修正对应配置所在层级的 registry；同时检查 DSH 插件管理器是否显式配置了相同错误地址。优先使用安装对话框单次选择正确源，无需改动其他项目的 npm 配置。
+
+该问题发生在插件加载之前，修改图片网关 API Key、移除插件依赖或清空 pnpm 缓存均不针对其原因。
+
+## 更新
+
+Git 安装固定到完整 commit 时，从 **插件 → 发现** 更新同仓库的 Git 版本。npm 安装从 **插件 → 已安装 → 插件详情 → 版本** 检查并更新；npm 与 Git 来源之间需要卸载后重新安装。本地目录安装通过更新本地文件并重启 DSH 生效。
+
+## 功能
+
 - **出图**：一句提示词出图，保存到指定的绝对路径，返回绝对路径与像素尺寸。
 - **改图**：按指令编辑、换风格、多图融合、套蒙版，最多 16 张参考图。
 - **补 4K**：官逆原生短边上限约 1536，落盘后按目标长边在本机放大（Real-ESRGAN / ffmpeg Lanczos3 / Pillow / ImageMagick / sips），macOS、Windows、Linux 通用。
@@ -141,49 +215,6 @@ Lanczos 只重采样、放大后偏软，所以默认叠一道轻度锐化（`up
 
 `bodyStallMs` 是插件配置项，默认 `30000` 毫秒，限制收到响应头后连续没有新数据的时间。`timeoutMs` 限制每次网关请求的总时长。
 
-## 安装
-
-1. 在 **插件 → 实验性插件** 启用 **自定义插件索引（Custom plugin indexes）**。
-2. 在 **插件 → 发现（Discover）** 添加索引源 `https://raw.githubusercontent.com/Aliax-LI/dsh-gpt-image/main/plugin-index.json`。
-3. 搜索 **GPT Image 官逆出图** 并安装。安装后在 **设置 → GPT Image** 填写网关地址和 API Key。
-
-**插件索引与 npm 安装源是两个独立配置：**
-
-| 用途 | 地址 | 填写位置 |
-| --- | --- | --- |
-| 发现插件和版本 | `https://raw.githubusercontent.com/Aliax-LI/dsh-gpt-image/main/plugin-index.json` | **发现 → 索引源** |
-| 下载 npm 依赖 | `https://registry.npmjs.org/` 或 `https://registry.npmmirror.com/` | 安装对话框的 **安装源（registry）** |
-
-### 安装时出现 `ERR_PNPM_FETCH_404`
-
-如果报错地址包含 `plugin-index.json/@deepseek-ai%2Fschemastery`，说明本次安装把插件索引地址当成了 npm registry。`@deepseek-ai/schemastery@3.19.0` 已发布在 npm；这条 404 本身不表示依赖缺失或需要登录。
-
-1. 保留 **发现** 页中的插件索引地址。
-2. 在安装对话框选择 **安装源 → npm 官方源**（`https://registry.npmjs.org/`）后重新安装；也可选择中国大陆镜像源。安装界面会记住所选源，重启应用后仍可能沿用之前的错误地址。
-3. 若从 **发现** 发起的安装没有安装源选择器，返回 **插件 → 添加插件**，填入以下固定版本的 Git 地址，并选择正确的 npm 安装源：
-
-   ```text
-   git+https://github.com/Aliax-LI/dsh-gpt-image.git#db487dec9de4f224ac9293ca173929e19507c40b
-   ```
-
-4. 若选择的是 **pnpm 默认源**，在发生错误的机器上检查 pnpm 配置：
-
-   ```bash
-   pnpm config get registry
-   pnpm config get @deepseek-ai:registry
-   pnpm view @deepseek-ai/schemastery@3.19.0 version --registry=https://registry.npmjs.org/
-   ```
-
-   依赖查询正常时输出 `3.19.0`。若前两项有一项输出插件索引地址，修正对应配置所在层级的 registry；同时检查 DSH 插件管理器是否显式配置了相同错误地址。优先使用安装对话框单次选择正确源，无需改动其他项目的 npm 配置。
-
-该问题发生在插件加载之前，修改图片网关 API Key、移除插件依赖或清空 pnpm 缓存均不针对其原因。
-
-## 更新
-
-从索引安装的插件会固定到某个 Git commit。有新版本时，在 **插件 → 发现（Discover）** 打开插件条目并选择 **更新**。本地目录链接和未固定到 commit 的 Git 安装不支持此入口。
-
-发布时，先更新包清单中的版本号，再为对应提交创建并推送 `vX.Y.Z` tag。GitHub Actions 会验证包名和版本，并将完整 commit SHA 加入市场索引。
-
 ## 本地开发
 
 ```bash
@@ -201,8 +232,21 @@ cd dsh-gpt-image && pnpm install
 node tests/selftest.mjs        # 参数闸门、注册、错误路径（不发请求）
 node tests/routes.test.mjs     # 设置页端点、图标、配置读写
 node tests/client.test.mjs     # 客户端模块契约、渲染层、primitives 复用
+node --test tests/market-index.test.mjs tests/publish-npm.test.mjs  # 双索引与 npm 发布校验
+pnpm run test:install         # 联网：临时目录打包 + npmmirror 依赖安装 + 插件导入
+# 也可指定官方源：pnpm run test:install --registry https://registry.npmjs.org/
 node tests/routes.test.mjs --live   # 真机：出图 + 4K 放大（需 GPT_IMAGE_API_KEY）
 ```
+
+## 维护者发布配置
+
+1. 在 npm 账号创建可发布 `@aliax-li/dsh-gpt-image` 的 token，保存为 GitHub 仓库 Actions secret **`NPM_TOKEN`**。作用域包公开发布由 `publishConfig.access: public` 指定；token 的发布权限与账号 2FA 策略需匹配。
+2. 修改包清单的版本号，运行 `pnpm test`、`pnpm run test:install`。首次切换 npm 分发应使用新的版本号，不重新指定历史 tag 或改写历史索引。
+3. 提交后创建并推送 `vX.Y.Z` tag。Actions 会验证 tag/包版本、运行分发测试、打包、发布到 npm、核对包名/版本/bundle 声明及 tarball integrity，再上传 Release 安装包与 SHA-256 校验和。
+4. npm 验证成功后才更新通用与大陆两个索引。token 缺失、发布失败或 npm 校验失败会中止流程，索引保持原样。可以在 Actions 手动输入同一个 tag 重试；已发布版本仅在 tarball integrity 一致时跳过重复发布。
+5. 发布完成后确认 npmmirror 已同步，再向大陆用户推荐新版本。CDN 索引可能短暂缓存旧内容，可暂用包名安装。
+
+该工作流没有在插件安装时执行 npm 发布、改写用户全局 registry 或设置第三方 GitHub 代理。
 
 ## 限制
 

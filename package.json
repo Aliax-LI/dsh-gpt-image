@@ -1,8 +1,15 @@
 {
   "name": "@aliax-li/dsh-gpt-image",
   "version": "0.1.2",
-  "private": true,
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "type": "module",
+  "scripts": {
+    "test": "node tests/selftest.mjs && node tests/routes.test.mjs && node tests/client.test.mjs && node --test tests/market-index.test.mjs tests/publish-npm.test.mjs",
+    "test:install": "node tests/install-smoke.mjs"
+  },
   "description": "DSH plugin: GPT Image reverse-channel generation/editing with a cross-platform 4K upscale chain and a native settings page.",
   "exports": {
     ".": "./index.js",

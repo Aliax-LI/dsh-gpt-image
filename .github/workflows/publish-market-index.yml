@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v[0-9]*.[0-9]*.[0-9]*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to publish or retry
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -15,28 +21,76 @@ concurrency:
 jobs:
   publish-index:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - name: Check out release tag
         uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.tag || github.ref_name }}
           fetch-depth: 0
+
+      - name: Set up Node and npm registry
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org/
+
+      - name: Validate release and run distribution tests
+        run: |
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+            assert.match(process.env.RELEASE_TAG, /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
+            assert.equal(pkg.name, "@aliax-li/dsh-gpt-image");
+            assert.equal(`v${pkg.version}`, process.env.RELEASE_TAG);
+          '
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")"
+          npm install --ignore-scripts --no-package-lock --registry=https://registry.npmjs.org/
+          npm test
+
+      - name: Pack the exact release
+        run: |
+          mkdir -p release-artifacts
+          npm pack --json --pack-destination release-artifacts > release-artifacts/pack.json
+          cd release-artifacts
+          sha256sum *.tgz > SHA256SUMS
+
+      - name: Publish and verify npm package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: node scripts/publish-npm.mjs
+
+      - name: Attach Git-free installation package and checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --generate-notes
+          fi
+          gh release upload "$RELEASE_TAG" release-artifacts/*.tgz release-artifacts/SHA256SUMS --clobber
+
+      - name: Preserve validated index generator
+        run: cp scripts/update-market-index.mjs "$RUNNER_TEMP/update-market-index.mjs"
 
       - name: Check out index branch
         run: |
           git fetch origin main:refs/remotes/origin/main
           git switch --force-create main origin/main
+          cp "$RUNNER_TEMP/update-market-index.mjs" scripts/update-market-index.mjs
 
-      - name: Add version to market index
-        run: node scripts/update-market-index.mjs "${GITHUB_REF_NAME}"
+      - name: Add verified npm version to both indexes
+        run: node scripts/update-market-index.mjs "$RELEASE_TAG" --source npm
 
       - name: Commit index update
         run: |
-          if git diff --quiet -- plugin-index.json; then
-            echo "Market index already contains this release."
+          git add plugin-index.json plugin-index.cn.json
+          if git diff --cached --quiet; then
+            echo "Market indexes already contain this release."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add plugin-index.json
-          git commit -m "chore: index ${GITHUB_REF_NAME}"
+          git commit -m "chore: index ${RELEASE_TAG} npm release"
           git push origin HEAD:main
