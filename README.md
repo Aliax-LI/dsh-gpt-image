@@ -147,6 +147,37 @@ Lanczos 只重采样、放大后偏软，所以默认叠一道轻度锐化（`up
 2. 在 **插件 → 发现（Discover）** 添加索引源 `https://raw.githubusercontent.com/Aliax-LI/dsh-gpt-image/main/plugin-index.json`。
 3. 搜索 **GPT Image 官逆出图** 并安装。安装后在 **设置 → GPT Image** 填写网关地址和 API Key。
 
+**插件索引与 npm 安装源是两个独立配置：**
+
+| 用途 | 地址 | 填写位置 |
+| --- | --- | --- |
+| 发现插件和版本 | `https://raw.githubusercontent.com/Aliax-LI/dsh-gpt-image/main/plugin-index.json` | **发现 → 索引源** |
+| 下载 npm 依赖 | `https://registry.npmjs.org/` 或 `https://registry.npmmirror.com/` | 安装对话框的 **安装源（registry）** |
+
+### 安装时出现 `ERR_PNPM_FETCH_404`
+
+如果报错地址包含 `plugin-index.json/@deepseek-ai%2Fschemastery`，说明本次安装把插件索引地址当成了 npm registry。`@deepseek-ai/schemastery@3.19.0` 已发布在 npm；这条 404 本身不表示依赖缺失或需要登录。
+
+1. 保留 **发现** 页中的插件索引地址。
+2. 在安装对话框选择 **安装源 → npm 官方源**（`https://registry.npmjs.org/`）后重新安装；也可选择中国大陆镜像源。安装界面会记住所选源，重启应用后仍可能沿用之前的错误地址。
+3. 若从 **发现** 发起的安装没有安装源选择器，返回 **插件 → 添加插件**，填入以下固定版本的 Git 地址，并选择正确的 npm 安装源：
+
+   ```text
+   git+https://github.com/Aliax-LI/dsh-gpt-image.git#db487dec9de4f224ac9293ca173929e19507c40b
+   ```
+
+4. 若选择的是 **pnpm 默认源**，在发生错误的机器上检查 pnpm 配置：
+
+   ```bash
+   pnpm config get registry
+   pnpm config get @deepseek-ai:registry
+   pnpm view @deepseek-ai/schemastery@3.19.0 version --registry=https://registry.npmjs.org/
+   ```
+
+   依赖查询正常时输出 `3.19.0`。若前两项有一项输出插件索引地址，修正对应配置所在层级的 registry；同时检查 DSH 插件管理器是否显式配置了相同错误地址。优先使用安装对话框单次选择正确源，无需改动其他项目的 npm 配置。
+
+该问题发生在插件加载之前，修改图片网关 API Key、移除插件依赖或清空 pnpm 缓存均不针对其原因。
+
 ## 更新
 
 从索引安装的插件会固定到某个 Git commit。有新版本时，在 **插件 → 发现（Discover）** 打开插件条目并选择 **更新**。本地目录链接和未固定到 commit 的 Git 安装不支持此入口。
