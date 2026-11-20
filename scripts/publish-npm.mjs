@@ -5,7 +5,7 @@ import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 /** Publishing and verification finish before the workflow changes either index. */
-export async function publishVerified({ manifest, integrity, read, publish, attempts = 6, delay = (ms) => new Promise((done) => setTimeout(done, ms)) }) {
+export async function publishVerified({ manifest, integrity, read, publish, attempts = 31, delay = (ms) => new Promise((done) => setTimeout(done, ms)) }) {
   const verify = (remote) => {
     assert.equal(remote.name, manifest.name, 'Published package name mismatch')
     assert.equal(remote.version, manifest.version, 'Published version mismatch')
@@ -25,7 +25,7 @@ export async function publishVerified({ manifest, integrity, read, publish, atte
       verify(remote)
       return 'published'
     }
-    if (attempt < attempts - 1) await delay(2000)
+    if (attempt < attempts - 1) await delay(10000)
   }
   throw new Error('Published version is not visible on npm; indexes were not updated')
 }

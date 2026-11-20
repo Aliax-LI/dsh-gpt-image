@@ -76,6 +76,21 @@ test('verification retries visibility lag, but fails when npm never serves the v
   await assert.rejects(publishVerified({ ...options, read: async () => null, publish: async () => {} }), /not visible/)
 })
 
+test('default verification tolerates npm visibility lag beyond ten seconds without republishing', async () => {
+  let reads = 0
+  let publishes = 0
+  const delays = []
+  const result = await publishVerified({ manifest, integrity,
+    read: async () => ++reads >= 9 ? published : null,
+    publish: async () => { publishes++ },
+    delay: async (ms) => { delays.push(ms) },
+  })
+  assert.equal(result, 'published')
+  assert.equal(publishes, 1)
+  assert.ok(delays.length >= 7)
+  assert.ok(delays.every(ms => ms >= 10000))
+})
+
 test('wrong package, version or missing bundle declaration blocks indexing', async () => {
   for (const bad of [
     { ...published, name: '@other/plugin' },
