@@ -8,7 +8,7 @@
 
 后续版本通过 **npm 包 + npmmirror** 分发，下载插件本体和依赖都不需要 Git 或 GitHub 仓库连接。大陆索引与通用索引内容同步，只有 npm 下载源不同。
 
-> 发布状态：当前已发布的 `0.1.0`–`0.1.2` 是 Git 版本。以下大陆索引、npm 包与 Release 安装包需要本次分发改动上线、并完成首个 npm 版本发布后生效。历史版本保留原 Git 来源，不会自动变成 npm 版本。
+> 发布方式：`0.1.0`–`0.1.2` 是历史 Git 版本；从 `0.1.4` 起，新版本由 GitHub Actions 通过 npm 可信发布（OIDC）分发，发布验证成功后自动加入大陆与通用索引。镜像和 CDN 可能有同步延迟。
 
 1. 在 **插件 → 实验性插件** 启用 **自定义插件索引（Custom plugin indexes）**。
 2. 在 **插件 → 发现（Discover）** 添加大陆索引（主入口不通时换备用入口）：
@@ -27,7 +27,7 @@
 3. 搜索 **GPT Image 官逆出图** 并安装。大陆索引的 npm 版本会传入 `https://registry.npmmirror.com/` 作为本次安装源。
 4. 安装后在 **设置 → GPT Image** 填写网关地址和 API Key。
 
-**不使用索引也可安装：**首个 npm 版本发布后，在 **插件 → 添加插件** 输入 `@aliax-li/dsh-gpt-image`，安装源选择 **中国大陆镜像源**。如需锁定版本，输入 `@aliax-li/dsh-gpt-image@X.Y.Z`，将 `X.Y.Z` 替换为已发布版本。索引 CDN 更新可能滞后；使用包名安装可跳过索引缓存。
+**不使用索引也可安装：**在 **插件 → 添加插件** 输入 `@aliax-li/dsh-gpt-image`，安装源选择 **中国大陆镜像源**。如需锁定版本，输入 `@aliax-li/dsh-gpt-image@X.Y.Z`，将 `X.Y.Z` 替换为已发布版本。索引 CDN 更新可能滞后；使用包名安装可跳过索引缓存。
 
 npmmirror 同步新版本可能有延迟。如果报插件包或版本不存在，在安装对话框临时选择 **npm 官方源** `https://registry.npmjs.org/` 重试，或稍后再试。当前 DSH 的默认配置会在部分源故障时尝试备选源；用户自定义了源集合时，具体回退顺序以 DSH 配置为准。
 
@@ -240,11 +240,11 @@ node tests/routes.test.mjs --live   # 真机：出图 + 4K 放大（需 GPT_IMAG
 
 ## 维护者发布配置
 
-1. 在 npm 账号创建可发布 `@aliax-li/dsh-gpt-image` 的 token，保存为 GitHub 仓库 Actions secret **`NPM_TOKEN`**。作用域包公开发布由 `publishConfig.access: public` 指定；token 的发布权限与账号 2FA 策略需匹配。
-2. 修改包清单的版本号，运行 `pnpm test`、`pnpm run test:install`。首次切换 npm 分发应使用新的版本号，不重新指定历史 tag 或改写历史索引。
-3. 提交后创建并推送 `vX.Y.Z` tag。Actions 会验证 tag/包版本、运行分发测试、打包、发布到 npm、核对包名/版本/bundle 声明及 tarball integrity，再上传 Release 安装包与 SHA-256 校验和。
-4. npm 验证成功后才更新通用与大陆两个索引。token 缺失、发布失败或 npm 校验失败会中止流程，索引保持原样。可以在 Actions 手动输入同一个 tag 重试；已发布版本仅在 tarball integrity 一致时跳过重复发布。
-5. 发布完成后确认 npmmirror 已同步，再向大陆用户推荐新版本。CDN 索引可能短暂缓存旧内容，可暂用包名安装。
+1. 在 npm 包的 **Settings → Trusted Publisher → GitHub Actions** 配置信任关系：Organization or user 填 `Aliax-LI`，Repository 填 `dsh-gpt-image`，Workflow filename 只填 `publish-market-index.yml`，Environment 留空，并允许 `npm publish`。新建配置需在页面规定的期限内通过一次 OIDC 发布完成验证。
+2. GitHub Actions 使用 `id-token: write` 和 GitHub 托管 runner，由 npm CLI 通过 OIDC 获取短期凭据；不再读取 `NPM_TOKEN`。先完成一次可信发布验证，再撤销旧 npm 发布 token 并删除对应 GitHub Secret。
+3. 修改包清单的版本号，运行 `pnpm test`、`pnpm run test:install`，提交后创建并推送 `vX.Y.Z` tag。Actions 验证 tag/包版本、运行测试、打包和发布，并核对包名/版本/bundle 声明及 tarball integrity，再上传 Release 安装包与 SHA-256 校验和。
+4. npm 验证成功后才更新通用与大陆两个索引。OIDC 信任匹配失败、发布失败或内容校验失败会中止流程，索引保持原样。可从 **main** 分支手动运行工作流并输入已有 tag，使用当前发布工具重试该 tag 的原始包内容；无需移动历史 tag。已发布版本仅在 tarball integrity 一致时跳过重复发布。
+5. 发布完成后确认 npmmirror 已同步，再向大陆用户推荐新版本。CDN 索引可能缓存旧内容，可暂用包名安装。
 
 该工作流没有在插件安装时执行 npm 发布、改写用户全局 registry 或设置第三方 GitHub 代理。
 

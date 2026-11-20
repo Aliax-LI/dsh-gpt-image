@@ -30,6 +30,14 @@ export async function publishVerified({ manifest, integrity, read, publish, atte
   throw new Error('Published version is not visible on npm; indexes were not updated')
 }
 
+/** Let npm negotiate OIDC in CI or use an interactive login locally. */
+export function createNpmPublisher({ manifest, filename, env = process.env, run = execFileSync }) {
+  return async () => {
+    const distTag = manifest.version.includes('-') ? 'next' : 'latest'
+    run('npm', ['publish', resolve('release-artifacts', filename), '--access', 'public', '--registry', 'https://registry.npmjs.org/', '--tag', distTag], { stdio: 'inherit', env })
+  }
+}
+
 async function main() {
   const manifest = JSON.parse(await readFile('package.json', 'utf8'))
   const [pack] = JSON.parse(await readFile('release-artifacts/pack.json', 'utf8'))
@@ -45,11 +53,7 @@ async function main() {
     if (!response.ok) throw new Error(`npm registry HTTP ${response.status}`)
     return response.json()
   }
-  const publish = async () => {
-    assert.ok(process.env.NODE_AUTH_TOKEN, 'Configure repository secret NPM_TOKEN before releasing')
-    const distTag = manifest.version.includes('-') ? 'next' : 'latest'
-    execFileSync('npm', ['publish', resolve('release-artifacts', pack.filename), '--access', 'public', '--registry', registry, '--tag', distTag], { stdio: 'inherit' })
-  }
+  const publish = createNpmPublisher({ manifest, filename: pack.filename })
   console.log(await publishVerified({ manifest, integrity: pack.integrity, read, publish }))
 }
 

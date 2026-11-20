@@ -1,11 +1,43 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { publishVerified } from '../scripts/publish-npm.mjs'
+import { readFile } from 'node:fs/promises'
+import { publishVerified, createNpmPublisher } from '../scripts/publish-npm.mjs'
 
 const manifest = { name: '@aliax-li/dsh-gpt-image', version: '1.2.3', dsh: { bundle: { patch: './cordis.patch.yml' } } }
 const integrity = 'sha512-fixture'
 const published = { ...manifest, dist: { integrity } }
 const options = { manifest, integrity, attempts: 2, delay: async () => {} }
+
+test('OIDC publishing passes GitHub credentials through without requiring a long-lived token', async () => {
+  const calls = []
+  const env = { ACTIONS_ID_TOKEN_REQUEST_URL: 'https://example.invalid/oidc', ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'fixture' }
+  const publish = createNpmPublisher({ manifest, filename: 'plugin.tgz', env,
+    run: (...args) => calls.push(args),
+  })
+  await publish()
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0][0], 'npm')
+  assert.ok(calls[0][1].includes('publish'))
+  assert.equal(calls[0][1].at(-1), 'latest')
+  assert.equal(calls[0][2].env, env)
+  assert.equal(calls[0][2].env.NODE_AUTH_TOKEN, undefined)
+})
+
+test('prerelease publishing uses next without requiring token authentication', async () => {
+  const calls = []
+  await createNpmPublisher({ manifest: { ...manifest, version: '1.2.3-rc.1' }, filename: 'plugin.tgz', env: {},
+    run: (...args) => calls.push(args),
+  })()
+  assert.equal(calls[0][1].at(-1), 'next')
+})
+
+test('workflow grants OIDC and preserves publishing tools before checking out an older release', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/publish-market-index.yml', import.meta.url), 'utf8')
+  assert.match(workflow, /id-token: write/)
+  assert.doesNotMatch(workflow, /secrets\.NPM_TOKEN/)
+  assert.ok(workflow.indexOf('cp scripts/publish-npm.mjs') < workflow.indexOf('git checkout --detach'))
+  assert.match(workflow, /run: node "\$RUNNER_TEMP\/publish-npm\.mjs"/)
+})
 
 test('publishes a missing npm version, then verifies it before success', async () => {
   const events = []
